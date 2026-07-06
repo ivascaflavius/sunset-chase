@@ -10,13 +10,14 @@
 
 const Audio_ = (() => {
   let ctx = null;
-  let masterGain, musicGain, padGain, bassGain, leadGain;
+  let masterGain, musicGain, padGain, bassGain, leadGain, bellGain, subGain;
   let filterNode, panNode, reverbNode;
   let delayNode, delayFeedback, delayWetGain;
   let filterLfo, filterLfoGain;
   let noiseBuffer = null;
   let started = false;
   let intensity = 0.7; // 0..1, from Settings "music intensity"
+  let enabled = true;  // master on/off toggle, independent of intensity
 
   // Scheduling
   let nextNoteTime = 0;
@@ -43,6 +44,16 @@ const Audio_ = (() => {
   ];
   const CHORD_LENGTH_STEPS = 32; // 2 bars per chord
 
+  // Hand-shaped melodic contours (as indices into A_MINOR) instead of pure
+  // random note picks — gives the motif an intentional rise-and-resolve arc
+  // rather than a flat, aimless sequence of notes.
+  const MELODY_SHAPES = [
+    [0, 2, 4, 7, 6, 4, 2, 0],
+    [2, 4, 7, 6, 4, 2, 0, 2],
+    [4, 6, 7, 6, 4, 2, 0, 4],
+    [0, 4, 7, 4, 2, 4, 7, 2],
+  ];
+
   let motif = []; // current run's 8-note motif
   let audioLatencyComp = 0.05; // seconds, compensates for output latency
 
@@ -52,10 +63,9 @@ const Audio_ = (() => {
       // ~35% chance to reuse a previous run's motif for continuity
       if (saved && Array.isArray(saved) && Math.random() < 0.35) return saved;
     } catch (e) { /* ignore */ }
-    // Generate a fresh random 8-note motif from the minor scale
-    const m = [];
-    for (let i = 0; i < 8; i++) m.push(A_MINOR[Math.floor(Math.random() * A_MINOR.length)]);
-    return m;
+    // Pick one of the hand-shaped melodic contours for a more musical arc
+    const shape = MELODY_SHAPES[Math.floor(Math.random() * MELODY_SHAPES.length)];
+    return shape.map((i) => A_MINOR[i % A_MINOR.length]);
   }
 
   function saveMotifMemory(m) {
@@ -70,7 +80,7 @@ const Audio_ = (() => {
     audioLatencyComp = (ctx.outputLatency || ctx.baseLatency || 0.03) + 0.02;
 
     masterGain = ctx.createGain();
-    masterGain.gain.value = intensity;
+    masterGain.gain.value = enabled ? intensity : 0;
 
     filterNode = ctx.createBiquadFilter();
     filterNode.type = 'lowpass';
@@ -87,9 +97,13 @@ const Audio_ = (() => {
     padGain = ctx.createGain();
     bassGain = ctx.createGain();
     leadGain = ctx.createGain();
+    bellGain = ctx.createGain();
+    subGain = ctx.createGain();
     padGain.gain.value = 0.0;
     bassGain.gain.value = 1.1;
     leadGain.gain.value = 0.7;
+    bellGain.gain.value = 0.8;
+    subGain.gain.value = 0.9;
 
     // Slow feedback delay on the lead voice for that spacious synthwave "echo"
     delayNode = ctx.createDelay(1.5);
@@ -113,9 +127,10 @@ const Audio_ = (() => {
     filterLfo.start();
 
     // Routing: instruments -> filter -> pan -> master (+ parallel reverb send)
-    [padGain, bassGain, leadGain].forEach((g) => g.connect(filterNode));
+    [padGain, bassGain, leadGain, bellGain].forEach((g) => g.connect(filterNode));
     filterNode.connect(panNode);
     delayWetGain.connect(panNode); // echoed lead bypasses the lowpass for clarity
+    subGain.connect(panNode); // sub-bass bypasses the reactive lowpass so low end stays felt
     panNode.connect(masterGain);
     filterNode.connect(reverbSend);
     reverbSend.connect(reverbNode);
@@ -170,6 +185,13 @@ const Audio_ = (() => {
 
   function playStep(step, time) {
     const chord = CHORDS[Math.floor(globalStep / CHORD_LENGTH_STEPS) % CHORDS.length];
+    const barInChord = Math.floor((globalStep % CHORD_LENGTH_STEPS) / 16);
+
+    // Sub-bass: a felt-more-than-heard sine an octave below the bass note,
+    // holding down the root on beat 1 of every bar for warmth & weight.
+    if (step === 0) {
+      subPluck(chord.tones[0] * 0.25, time, 1.6);
+    }
 
     // Bass arpeggio: walks root / fifth-ish / octave / third across each bar
     // instead of static quarter notes, for a rolling synthwave bassline.
@@ -193,6 +215,14 @@ const Audio_ = (() => {
       pluck(padGain, tone, time, 0.5, 'triangle', 0.1 + current.bloom * 0.12);
     }
 
+    // Bell arpeggio: sparse, high-register chord tones (an octave up) for a
+    // sparkly, melodious top layer — only in alternating bars so it doesn't
+    // clutter the mix, more prominent during flow/bloom moments.
+    if (barInChord === 1 && step % 4 === 3) {
+      const tone = chord.tones[Math.floor(step / 4) % chord.tones.length] * 2;
+      bellPluck(tone, time, 0.9);
+    }
+
     // Soft hats for a subtle rhythmic pulse, brighter when accelerating
     if (step % 2 === 1) hat(time, 0.04 + current.brightness * 0.05);
 
@@ -214,6 +244,42 @@ const Audio_ = (() => {
     g.connect(destGain);
     osc.start(time);
     osc.stop(time + dur + 0.05);
+  }
+
+  // Deep sine sub-bass hit — bypasses the reactive lowpass entirely (routed to
+  // subGain) so the low end stays felt even when the filter darkens during a
+  // sunset descent.
+  function subPluck(freq, time, dur) {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(0.5, time + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    osc.connect(g);
+    g.connect(subGain);
+    osc.start(time);
+    osc.stop(time + dur + 0.05);
+  }
+
+  // Bright, bell-like pluck (sine + a quiet detuned partner) for a sparkling
+  // high melodic layer that surfaces occasionally between motif phrases.
+  function bellPluck(freq, time, dur) {
+    [1, 2.01].forEach((mult, i) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq * mult;
+      const vol = i === 0 ? 0.22 : 0.07;
+      g.gain.setValueAtTime(0.0001, time);
+      g.gain.exponentialRampToValueAtTime(vol, time + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+      osc.connect(g);
+      g.connect(bellGain);
+      osc.start(time);
+      osc.stop(time + dur + 0.05);
+    });
   }
 
   // Two slightly detuned oscillators in unison give the lead a wider, thicker
@@ -286,12 +352,19 @@ const Audio_ = (() => {
     const cutoff = 400 + current.brightness * 3200 - current.darkness * 900;
     filterNode.frequency.setTargetAtTime(Math.max(200, cutoff), ctx.currentTime, 0.2);
     if (panNode.pan) panNode.pan.setTargetAtTime(current.pan, ctx.currentTime, 0.15);
-    masterGain.gain.setTargetAtTime(intensity, ctx.currentTime, 0.3);
+    masterGain.gain.setTargetAtTime(enabled ? intensity : 0, ctx.currentTime, 0.3);
   }
 
   function setIntensity(v) {
     intensity = Math.max(0, Math.min(1, v));
-    if (masterGain) masterGain.gain.setTargetAtTime(intensity, ctx ? ctx.currentTime : 0, 0.2);
+    if (masterGain) masterGain.gain.setTargetAtTime(enabled ? intensity : 0, ctx ? ctx.currentTime : 0, 0.2);
+  }
+
+  // Mutes/unmutes the whole music engine instantly (used by the Settings
+  // sound toggle) without tearing down or restarting the scheduler.
+  function setEnabled(v) {
+    enabled = v;
+    if (masterGain) masterGain.gain.setTargetAtTime(enabled ? intensity : 0, ctx ? ctx.currentTime : 0, 0.15);
   }
 
   function resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); }
@@ -305,5 +378,5 @@ const Audio_ = (() => {
 
   function getLatencyCompensation() { return audioLatencyComp; }
 
-  return { init, resume, stop, updateFromDriving, setIntensity, getLatencyCompensation };
+  return { init, resume, stop, updateFromDriving, setIntensity, setEnabled, getLatencyCompensation };
 })();

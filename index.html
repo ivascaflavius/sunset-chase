@@ -83,17 +83,14 @@
       <div class="menu-panel breathing-border">
         <h2>Settings</h2>
 
-        <label class="field-label">Music Intensity</label>
-        <input type="range" id="setting-music" min="0" max="100" value="70" class="slider" />
+        <label class="field-label">Sound</label>
+        <button id="setting-sound-toggle" class="menu-btn sound-toggle-btn" data-action="toggle-sound">🔊 Sound On</button>
 
         <label class="field-label">Visual Filter</label>
         <div id="filter-row" class="swatch-row filter-row"></div>
 
         <label class="field-label">Car Model</label>
         <div id="car-model-row" class="swatch-row car-model-row"></div>
-
-        <label class="field-label">Road Curvature</label>
-        <input type="range" id="setting-curvature" min="0" max="100" value="50" class="slider" />
 
         <div class="dialog-actions">
           <button data-action="save-settings" class="menu-btn primary">Save</button>

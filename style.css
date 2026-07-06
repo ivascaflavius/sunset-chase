@@ -143,6 +143,9 @@ html, body {
 
 .menu-footer { margin-top: 12px; font-size: 12px; opacity: 0.7; }
 
+.sound-toggle-btn { width: 100%; margin-top: 4px; }
+.sound-toggle-btn.sound-off { border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.04); opacity: 0.7; }
+
 h2 { color: var(--neon-cyan); text-shadow: 0 0 10px rgba(45,226,230,0.5); margin-top: 0; }
 h3 { color: var(--neon-orange); margin-bottom: 4px; }
 

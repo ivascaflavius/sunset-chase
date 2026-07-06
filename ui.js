@@ -45,7 +45,7 @@ const UI = (() => {
   function defaultSave() {
     return {
       plate: { text: 'SUNSET1', color: PLATE_COLORS[0], icon: PLATE_ICONS[0] },
-      settings: { music: 70, filter: 'none', car: 'testarossa', curvature: 50 },
+      settings: { soundOn: true, filter: 'none', car: 'testarossa' },
       bestDistanceKm: 0,
       lifetimeKm: 0,
       suspensionBest: 0, // seconds
@@ -59,6 +59,10 @@ const UI = (() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       save = raw ? Object.assign(defaultSave(), JSON.parse(raw)) : defaultSave();
+      // Nested-merge settings so older saves (which may lack newer fields, or
+      // still carry now-removed ones like "music"/"curvature") don't clobber
+      // the current settings shape.
+      save.settings = Object.assign(defaultSave().settings, save.settings);
     } catch (e) {
       save = defaultSave();
     }
@@ -116,6 +120,7 @@ const UI = (() => {
       case 'open-journey': renderJourneyLog(); showScreen('journey'); break;
       case 'open-settings': loadSettingsIntoForm(); showScreen('settings'); break;
       case 'open-help': showScreen('help'); break;
+      case 'toggle-sound': toggleSound(); break;
       case 'back-menu': applyVisualFilter(save.settings.filter); renderMenu(); showScreen('menu'); break;
       case 'save-plate': savePlateFromForm(); renderMenu(); showScreen('menu'); break;
       case 'save-settings': saveSettingsFromForm(); actionHandlers.settingsChanged && actionHandlers.settingsChanged(save.settings); renderMenu(); showScreen('menu'); break;
@@ -216,10 +221,25 @@ const UI = (() => {
 
   // ----- Settings ----------------------------------------------------------
   function loadSettingsIntoForm() {
-    document.getElementById('setting-music').value = save.settings.music;
-    document.getElementById('setting-curvature').value = save.settings.curvature;
+    renderSoundToggle();
     renderFilterRow();
     renderCarModelRow();
+  }
+
+  // Updates the sound toggle button's label/state to reflect save.settings.soundOn.
+  function renderSoundToggle() {
+    const btn = document.getElementById('setting-sound-toggle');
+    btn.textContent = save.settings.soundOn ? '🔊 Sound On' : '🔇 Sound Off';
+    btn.classList.toggle('sound-off', !save.settings.soundOn);
+  }
+
+  // Instantly flips the mute state — takes effect immediately (not gated
+  // behind the Save button) since it's a simple, low-stakes on/off toggle.
+  function toggleSound() {
+    save.settings.soundOn = !save.settings.soundOn;
+    renderSoundToggle();
+    persist();
+    actionHandlers.settingsChanged && actionHandlers.settingsChanged(save.settings);
   }
 
   // Renders the visual-filter picker as color/gradient swatches with a
@@ -268,9 +288,7 @@ const UI = (() => {
   }
 
   function saveSettingsFromForm() {
-    save.settings.music = parseInt(document.getElementById('setting-music').value, 10);
     save.settings.filter = previewFilter;
-    save.settings.curvature = parseInt(document.getElementById('setting-curvature').value, 10);
     persist();
     applyVisualFilter(save.settings.filter);
   }

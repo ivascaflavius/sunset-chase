@@ -404,6 +404,8 @@ const World = (() => {
   // Tall, slender coconut/LA-boulevard-style palm: a gently leaning curved trunk
   // topped with a crown of long fronds that arc up and out, then droop down at
   // their tips (the classic silhouette), plus a few coconuts nestled in the crown.
+  // Fronds are filled tapered blade shapes (not thin strokes) so the canopy
+  // reads as a solid, full silhouette rather than a spidery wireframe.
   function drawCoconutPalm(ctx, size, lean) {
     const trunkH = size * 1.9; // tall & slender, taller than the old version
     const leanX = size * (0.18 + lean * 0.15);
@@ -424,23 +426,40 @@ const World = (() => {
     ctx.save();
     ctx.translate(crownX, crownY);
 
-    // Fronds: long tapered strokes that rise from the crown then droop at the tip
-    const frondAngles = [-70, -40, -14, 10, 34, 60, 92, 124];
-    ctx.strokeStyle = ctx.fillStyle;
-    ctx.lineCap = 'round';
-    frondAngles.forEach((deg) => {
+    // A solid hub fill beneath the fronds merges their bases into one clump
+    // (avoids gaps between individual blades showing through to the sky).
+    ctx.beginPath();
+    ctx.ellipse(0, size * 0.06, size * 0.22, size * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Fronds: solid tapered leaf-blade shapes that rise from the crown then
+    // droop back down at the tip — full width near the base, narrowing to a
+    // point at the tip, like a real coconut/queen palm frond.
+    const frondAngles = [-72, -42, -16, 8, 32, 58, 90, 122];
+    frondAngles.forEach((deg, i) => {
       const a = (deg * Math.PI) / 180;
-      const len = size * (0.85 + Math.abs(Math.sin(a)) * 0.25);
-      const dirX = Math.sin(a), dirY = -Math.abs(Math.cos(a)) * 0.7 - 0.3;
+      const len = size * (0.95 + Math.abs(Math.sin(a)) * 0.3);
+      const dirX = Math.sin(a);
+      const dirY = -Math.abs(Math.cos(a)) * 0.7 - 0.3;
+      const dLen = Math.hypot(dirX, dirY) || 1;
+      const ndx = dirX / dLen, ndy = dirY / dLen;
+      const perpX = -ndy, perpY = ndx; // perpendicular direction, for blade width
+
       const midX = dirX * len * 0.55;
       const midY = dirY * len * 0.55;
       const endX = dirX * len * 1.05;
       const endY = midY + len * 0.5; // droop back downward at the tip
-      ctx.lineWidth = Math.max(1, size * 0.07);
+
+      // Slightly vary blade width per-frond for a more organic, less uniform canopy
+      const baseW = size * (0.15 + (i % 3) * 0.02);
+      const midW = size * 0.09;
+
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(midX, midY, endX, endY);
-      ctx.stroke();
+      ctx.moveTo(perpX * baseW * 0.5, perpY * baseW * 0.5);
+      ctx.quadraticCurveTo(midX + perpX * midW * 0.5, midY + perpY * midW * 0.5, endX, endY);
+      ctx.quadraticCurveTo(midX - perpX * midW * 0.5, midY - perpY * midW * 0.5, -perpX * baseW * 0.5, -perpY * baseW * 0.5);
+      ctx.closePath();
+      ctx.fill();
     });
 
     // A few coconuts clustered under the crown
@@ -504,6 +523,14 @@ const World = (() => {
     const camHeight = CAMERA_HEIGHT;
     const playerSegment = segments[baseSegIdx];
     const camY = (playerSegment ? playerSegment.y : 0) + camHeight;
+    // Fractional progress through the current segment. Without this, the
+    // camera would only appear to move once per full SEGMENT_LENGTH of
+    // travel (a visible "pop" every 200 world units) instead of scrolling
+    // smoothly — this is what caused the road to look like it snapped/
+    // turned abruptly. Subtracting this from each segment's Z distance
+    // keeps the projection continuous frame-to-frame.
+    const segFloat = playerDist / SEGMENT_LENGTH - trimmedOffset;
+    const segPercent = segFloat - Math.floor(segFloat);
     let x = 0, dx = 0;
     let maxY = h;
 
@@ -512,10 +539,12 @@ const World = (() => {
       const seg = segments[idx];
       if (!seg) continue;
 
-      const segWorldZ = n * SEGMENT_LENGTH;
-      const segWorldZ2 = (n + 1) * SEGMENT_LENGTH;
+      const segWorldZ = (n - segPercent) * SEGMENT_LENGTH;
+      const segWorldZ2 = (n + 1 - segPercent) * SEGMENT_LENGTH;
 
-      const scale1 = CAMERA_DEPTH / Math.max(1, segWorldZ || 1);
+      // Clamp to a small positive minimum (never divide by ~0 or negative Z,
+      // which happens for the segment currently under/behind the camera).
+      const scale1 = CAMERA_DEPTH / Math.max(1, segWorldZ);
       const scale2 = CAMERA_DEPTH / Math.max(1, segWorldZ2);
 
       x += dx;
@@ -524,13 +553,20 @@ const World = (() => {
       const roadCenterX1 = w / 2 + scale1 * x * w / 2 - scale1 * playerX * ROAD_WIDTH * w / 2;
       const roadCenterX2 = w / 2 + scale2 * (x + dx) * w / 2 - scale2 * playerX * ROAD_WIDTH * w / 2;
 
-      const y1 = h / 2 - scale1 * ((seg.y - camY)) * h / 2;
+      const y1raw = h / 2 - scale1 * ((seg.y - camY)) * h / 2;
       const y2 = h / 2 - scale2 * ((segments[(idx + 1) % segments.length].y - camY)) * h / 2;
 
       const w1 = scale1 * ROAD_WIDTH * w / 2;
       const w2 = scale2 * ROAD_WIDTH * w / 2;
 
-      if (y1 <= y2 || y2 < horizonY - 4 || y1 > h + 4) continue;
+      if (y2 < horizonY - 4 || y2 > h + 4) continue;
+      // Segments very close to the camera project to enormous Y values
+      // (far below the screen). Clamp the near edge to the bottom of the
+      // canvas so the polygon always reaches all the way down — otherwise
+      // a gap was left at the bottom edge where the road should be, and
+      // the raw unshaded fallback grass color showed through instead.
+      const y1 = Math.min(y1raw, h + 2);
+      if (y1 <= y2) continue;
       if (y1 > maxY) continue;
       maxY = Math.min(maxY, y1);
 

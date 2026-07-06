@@ -99,9 +99,9 @@
     const save = UI.getSave();
     Audio_.init();
     Audio_.resume();
-    Audio_.setIntensity(save.settings.music / 100);
+    Audio_.setEnabled(save.settings.soundOn);
 
-    World.reset(Date.now(), save.settings.curvature / 100);
+    World.reset(Date.now(), 0.5); // fixed, moderate road curvature
 
     car.x = 0; car.speed = 0; car.distance = 0; car.heading = 0; car.lateralVel = 0; car.wheelAngle = 0; car.shake = 0;
     sunset.height01 = 0.78; sunset.flow = 0; sunset.flowBest = 0; sunset.suspensionTime = 0;
@@ -255,7 +255,7 @@
 
     // World & audio reactive updates
     World.update(dt, car.speed);
-    World.ensureAhead(Math.floor(car.distance / World.SEGMENT_LENGTH), UI.getSave().settings.curvature / 100);
+    World.ensureAhead(Math.floor(car.distance / World.SEGMENT_LENGTH), 0.5);
 
     Audio_.updateFromDriving({
       accelAmount: accel,
@@ -300,6 +300,17 @@
     drawCar(w, h, save.settings.car, flow01, Controls.state.brake);
 
     UI.updateHud(car.distance / 100000, result.zoneName, sunset.height01, car.speed * 220, sunset.suspensionTime, lineProximity);
+  }
+
+  // Lightens (positive percent) or darkens (negative percent) a '#rrggbb'
+  // hex color by a flat amount per channel. Used for simple body shading.
+  function shadeStyleColor(hex, percent) {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    let r = Math.min(255, Math.max(0, (num >> 16) + amt));
+    let g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + amt));
+    let b = Math.min(255, Math.max(0, (num & 0x0000ff) + amt));
+    return `rgb(${r}, ${g}, ${b})`;
   }
 
   function drawNeonTrail(w, h) {
@@ -379,6 +390,32 @@
     ctx.fillRect(-carW * 0.4, carH * 0.24, carW * 0.8, carH * 0.1);
     ctx.globalAlpha = 1;
 
+    // Rear bumper strip — a darker band along the very bottom of the body,
+    // with a pair of exhaust tips, so the underside reads as a real bumper
+    // rather than the body simply stopping (a big source of the "shoebox" look).
+    ctx.fillStyle = shadeStyleColor(style.color, -35);
+    ctx.fillRect(-carW * 0.42, carH * 0.3, carW * 0.84, carH * 0.08);
+    ctx.fillStyle = '#1a1a1a';
+    [-1, 1].forEach((side) => {
+      ctx.beginPath();
+      ctx.ellipse(side * carW * 0.28, carH * 0.35, carW * 0.035, carH * 0.045, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Specular highlight streak across the upper body — sells a glossy,
+    // curved painted surface instead of a flat-shaded block.
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(-carW * 0.34, -carH * 0.02);
+    ctx.quadraticCurveTo(0, -carH * 0.1, carW * 0.34, -carH * 0.02);
+    ctx.lineTo(carW * 0.3, carH * 0.02);
+    ctx.quadraticCurveTo(0, -carH * 0.05, -carW * 0.3, carH * 0.02);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
     // --- Roof / cabin silhouette (narrower, set back, gently tapered) ---
     ctx.beginPath();
     ctx.moveTo(-carW * 0.28, -carH * 0.05);
@@ -436,40 +473,59 @@
     ctx.restore();
   }
 
-  // Draws a single wheel viewed from behind the car: edge-on (a thin ellipse,
-  // like looking at the tire tread face-on) when driving straight, opening up
-  // into a wider, angled oval — revealing more of the rim — as the car steers,
-  // just like a real wheel's visible profile changes as it turns. Includes a
-  // visible tire sidewall + inner rim so the wheel reads as having thickness
-  // rather than being a flat disc.
+  // Draws a rounded-rectangle "capsule" (stadium) path — a straight-sided
+  // shape with semicircular caps — used for the tire/rim so wheels read as
+  // having real cylindrical thickness instead of collapsing into a paper-thin
+  // ellipse when the car drives straight and steerAngle ~= 0.
+  function pathCapsule(cx, cy, halfW, halfH) {
+    const rad = Math.min(halfW, halfH);
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(cx - halfW, cy - halfH, halfW * 2, halfH * 2, rad);
+    } else {
+      // Manual fallback path for browsers without roundRect support.
+      ctx.moveTo(cx - halfW, cy - halfH + rad);
+      ctx.arcTo(cx - halfW, cy - halfH, cx, cy - halfH, rad);
+      ctx.arcTo(cx + halfW, cy - halfH, cx + halfW, cy - halfH + rad, rad);
+      ctx.lineTo(cx + halfW, cy + halfH - rad);
+      ctx.arcTo(cx + halfW, cy + halfH, cx, cy + halfH, rad);
+      ctx.arcTo(cx - halfW, cy + halfH, cx - halfW, cy + halfH - rad, rad);
+      ctx.closePath();
+    }
+  }
+
+  // Draws a single wheel viewed from behind the car. The tire is rendered as
+  // a capsule (stadium) rather than a flat ellipse, so it always shows real
+  // sidewall thickness — even dead-on when driving straight — instead of
+  // collapsing into a hairline sliver. Widens/opens up as the car steers,
+  // revealing more of the metallic rim, just like a real wheel's visible
+  // profile changes when turning.
   function drawWheel(x, y, r, steerAngle) {
     ctx.save();
     ctx.translate(x, y);
     const openness = Math.min(1, Math.abs(steerAngle)); // 0 = dead straight, 1 = full lock
-    const rx = r * (0.32 + openness * 0.68);
+    // Minimum thickness floor so the tire never vanishes into a line.
+    const halfW = r * (0.34 + openness * 0.4);
     ctx.rotate(steerAngle * 0.35); // slight tilt sells the angled-wheel look
 
-    // Outer tire: dark rubber with a slightly lighter sidewall ring to fake thickness
+    // Outer tire: dark rubber capsule with a lighter sidewall ring stroke
     ctx.fillStyle = '#0a0a0a';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rx, r, 0, 0, Math.PI * 2);
+    pathCapsule(0, 0, halfW, r);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(70,70,70,0.6)';
-    ctx.lineWidth = Math.max(1, r * 0.1);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rx * 0.86, r * 0.86, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(70,70,70,0.65)';
+    ctx.lineWidth = Math.max(1, r * 0.09);
+    pathCapsule(0, 0, halfW * 0.82, r * 0.86);
     ctx.stroke();
 
     // Inner rim (metallic), noticeably smaller than the tire so a sidewall band shows
-    const rimRx = rx * 0.58, rimR = r * 0.58;
+    const rimHalfW = halfW * 0.55, rimR = r * 0.58;
     ctx.fillStyle = '#3a3a3a';
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rimRx, rimR, 0, 0, Math.PI * 2);
+    pathCapsule(0, 0, rimHalfW, rimR);
     ctx.fill();
 
-    // Rim spokes, squashed to match the ellipse so they rotate believably in perspective
+    // Rim spokes, squashed to match the capsule width so they rotate believably
     ctx.save();
-    ctx.scale(rimRx / rimR, 1);
+    ctx.scale(rimHalfW / rimR, 1);
     ctx.rotate(wheelSpin);
     ctx.strokeStyle = `rgba(190,190,190,${0.45 + openness * 0.5})`;
     ctx.lineWidth = Math.max(1, r * 0.14);
@@ -485,7 +541,7 @@
     // Center hub cap
     ctx.fillStyle = '#141414';
     ctx.beginPath();
-    ctx.ellipse(0, 0, rimRx * 0.22, rimR * 0.22, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, rimHalfW * 0.4, rimR * 0.22, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -525,7 +581,7 @@
   UI.on('quitRequested', quitToMenu);
   UI.on('restartRequested', () => { lastZoneSet = new Set(); startRun(); });
   UI.on('settingsChanged', (settings) => {
-    Audio_.setIntensity(settings.music / 100);
+    Audio_.setEnabled(settings.soundOn);
   });
   UI.on('orientationChanged', (isLandscape) => {
     if (!isLandscape && state === STATE.PLAYING) pauseRun();
