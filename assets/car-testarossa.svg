@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">
+  <!-- Testarossa-style wedge silhouette with signature side strakes -->
+  <path d="M10 70 L30 40 L70 28 L150 28 L185 50 L190 70 Z" fill="#ff3ea5"/>
+  <rect x="60" y="18" width="70" height="16" fill="#ffe27a"/>
+  <g stroke="#1a1a1a" stroke-width="3">
+    <line x1="95" y1="40" x2="88" y2="66"/>
+    <line x1="103" y1="40" x2="96" y2="66"/>
+    <line x1="111" y1="40" x2="104" y2="66"/>
+  </g>
+  <circle cx="45" cy="72" r="12" fill="#111"/>
+  <circle cx="155" cy="72" r="12" fill="#111"/>
+</svg>

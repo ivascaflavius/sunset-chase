@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">
+  <!-- Countach-style extreme low wedge with scissor-door hint -->
+  <path d="M5 72 L20 36 L60 22 L160 22 L192 46 L195 72 Z" fill="#2de2e6"/>
+  <path d="M70 24 L110 24 L100 40 L60 40 Z" fill="#ffffff" opacity="0.85"/>
+  <rect x="35" y="60" width="20" height="4" fill="#111"/>
+  <circle cx="42" cy="74" r="12" fill="#111"/>
+  <circle cx="158" cy="74" r="12" fill="#111"/>
+</svg>

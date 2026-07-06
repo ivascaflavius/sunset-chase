@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Skyline icon for license plate / zone iconography -->
+  <rect x="8" y="30" width="8" height="26" fill="#1c1230"/>
+  <rect x="18" y="20" width="8" height="36" fill="#1c1230"/>
+  <rect x="28" y="34" width="8" height="22" fill="#1c1230"/>
+  <rect x="38" y="14" width="8" height="42" fill="#1c1230"/>
+  <rect x="48" y="26" width="8" height="30" fill="#1c1230"/>
+  <circle cx="42" cy="10" r="3" fill="#2de2e6"/>
+</svg>

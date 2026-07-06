@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Sunset Chase — A Synthwave Drive</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       STAGE: the 16:9 letterboxed frame that contains everything.
+       Black bars fill unused space; #stage itself is always 16:9.
+       ============================================================ -->
+  <div id="stage">
+
+    <!-- Main render surface -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- ============================ MAIN MENU ============================ -->
+    <section id="screen-menu" class="screen active">
+      <div class="menu-panel breathing-border">
+        <h1 class="logo">SUNSET <span>CHASE</span></h1>
+        <p class="tagline">an endless synthwave drive</p>
+        <nav class="menu-list">
+          <button data-action="start-drive" class="menu-btn primary">▶ Start Drive</button>
+          <button data-action="open-plate" class="menu-btn">🚘 Edit License Plate</button>
+          <button data-action="open-journey" class="menu-btn">📖 Journey Log</button>
+          <button data-action="open-settings" class="menu-btn">⚙ Settings</button>
+          <button data-action="open-help" class="menu-btn">❓ Help</button>
+        </nav>
+        <p class="menu-footer">Best distance: <span id="menu-best-distance">0.0</span> km</p>
+      </div>
+    </section>
+
+    <!-- ======================= LICENSE PLATE EDITOR ======================= -->
+    <section id="screen-plate" class="screen">
+      <div class="menu-panel breathing-border">
+        <h2>License Plate</h2>
+        <div class="plate-preview-wrap">
+          <div id="plate-preview" class="plate-preview">
+            <span id="plate-icon">🌴</span>
+            <span id="plate-text">SUNSET1</span>
+          </div>
+        </div>
+        <label class="field-label" for="plate-text-input">Plate Text (max 7 chars)</label>
+        <input id="plate-text-input" maxlength="7" class="text-input" value="SUNSET1" />
+
+        <label class="field-label">Plate Color</label>
+        <div id="plate-color-row" class="swatch-row"></div>
+
+        <label class="field-label">Icon</label>
+        <div id="plate-icon-row" class="swatch-row"></div>
+
+        <div class="dialog-actions">
+          <button data-action="save-plate" class="menu-btn primary">Save</button>
+          <button data-action="back-menu" class="menu-btn">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ JOURNEY LOG =========================== -->
+    <section id="screen-journey" class="screen">
+      <div class="menu-panel breathing-border">
+        <h2>Journey Log</h2>
+        <ul class="stat-list">
+          <li><span>Best Run Distance</span><strong id="stat-best">0.0 km</strong></li>
+          <li><span>Lifetime KM Driven</span><strong id="stat-lifetime">0.0 km</strong></li>
+          <li><span>Longest Time Survived</span><strong id="stat-suspension">0:00</strong></li>
+          <li><span>Zones Visited</span><strong id="stat-zones">0 / 4</strong></li>
+          <li><span>Best Flow Streak</span><strong id="stat-streak">0s</strong></li>
+        </ul>
+        <h3>Achievements</h3>
+        <ul id="achievement-list" class="achievement-list"></ul>
+        <div class="dialog-actions">
+          <button data-action="back-menu" class="menu-btn">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== SETTINGS ============================ -->
+    <section id="screen-settings" class="screen">
+      <div class="menu-panel breathing-border">
+        <h2>Settings</h2>
+
+        <label class="field-label">Music Intensity</label>
+        <input type="range" id="setting-music" min="0" max="100" value="70" class="slider" />
+
+        <label class="field-label">Visual Filter</label>
+        <div id="filter-row" class="swatch-row filter-row"></div>
+
+        <label class="field-label">Car Model</label>
+        <div id="car-model-row" class="swatch-row car-model-row"></div>
+
+        <label class="field-label">Road Curvature</label>
+        <input type="range" id="setting-curvature" min="0" max="100" value="50" class="slider" />
+
+        <div class="dialog-actions">
+          <button data-action="save-settings" class="menu-btn primary">Save</button>
+          <button data-action="back-menu" class="menu-btn">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================ HELP ============================== -->
+    <section id="screen-help" class="screen">
+      <div class="menu-panel breathing-border help-panel">
+        <h2>Help &amp; Tips</h2>
+        <div class="help-scroll">
+          <h3>Desktop Controls</h3>
+          <p>Arrow keys or WASD to steer &amp; accelerate. Space to brake. Gamepad left stick + triggers supported. Esc to pause.</p>
+          <h3>Mobile Controls</h3>
+          <p>Touch zones: lower-left steers left, lower-right steers right, bottom-right accelerates, upper-right brakes.</p>
+          <h3>Gameplay Tips</h3>
+          <p>Smooth, steady driving keeps the sun high. Harsh braking, swerving or going off-road speeds up the sunset. Long stretches of flow make the sun rise and the music bloom.</p>
+          <h3>Accessibility</h3>
+          <p>Visual filters can reduce glow intensity (Midnight Mode) for sensitive eyes. All text scales with viewport.</p>
+          <h3>Relaxation Mode: The Perfect Line</h3>
+          <p>Watch the 🎯 meter in the HUD — it fills as you settle into the dead-center of the lane at a steady speed. Once it's full, the sunset freezes completely. Drift off-line, brake hard, or stop and it starts sinking again.</p>
+        </div>
+        <div class="dialog-actions">
+          <button data-action="back-menu" class="menu-btn">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== HUD (in-run) ========================= -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-distance">🛣 <span id="hud-distance">0.0</span> km</div>
+        <div class="hud-speed">🏎 <span id="hud-speed">0</span> km/h</div>
+        <div class="hud-time">⏱ <span id="hud-time">0:00</span></div>
+        <div class="hud-zone" id="hud-zone">Palm Zone</div>
+        <div class="hud-line-meter" id="hud-line-meter" title="Perfect Line: stay centered to hold the sunset">
+          <span class="hud-line-icon">🎯</span>
+          <div class="hud-line-bar"><div id="hud-line-fill" class="hud-line-fill"></div></div>
+        </div>
+        <div class="hud-sun-meter"><div id="hud-sun-fill" class="hud-sun-fill"></div></div>
+      </div>
+      <button id="pause-btn" class="icon-btn" data-action="pause">❚❚</button>
+    </div>
+
+    <!-- ============================ TOUCH CONTROLS ========================= -->
+    <div id="touch-controls" class="hidden">
+      <div id="touch-left" class="touch-zone touch-left"><span>◀</span></div>
+      <div id="touch-right" class="touch-zone touch-right"><span>▶</span></div>
+      <div id="touch-brake" class="touch-zone touch-brake"><span>BRAKE</span></div>
+      <div id="touch-accel" class="touch-zone touch-accel"><span>GAS</span></div>
+    </div>
+
+    <!-- ============================== PAUSE MENU =========================== -->
+    <section id="screen-pause" class="screen">
+      <div class="menu-panel breathing-border">
+        <h2>Paused</h2>
+        <nav class="menu-list">
+          <button data-action="resume" class="menu-btn primary">Resume</button>
+          <button data-action="open-settings" class="menu-btn">Settings</button>
+          <button data-action="quit-to-menu" class="menu-btn">Quit to Menu</button>
+        </nav>
+      </div>
+    </section>
+
+    <!-- ============================= GAME OVER ============================= -->
+    <section id="screen-gameover" class="screen">
+      <div class="menu-panel breathing-border">
+        <h2 id="gameover-title">The Sun Has Set</h2>
+        <ul class="stat-list">
+          <li><span>Distance Driven</span><strong id="go-distance">0.0 km</strong></li>
+          <li><span>Time Survived</span><strong id="go-time">0:00</strong></li>
+          <li><span>Zones Visited</span><strong id="go-zones">0</strong></li>
+          <li><span>Best Flow Streak</span><strong id="go-streak">0s</strong></li>
+          <li><span>New Best?</span><strong id="go-newbest">—</strong></li>
+        </ul>
+        <div class="dialog-actions">
+          <button data-action="restart" class="menu-btn primary">Drive Again</button>
+          <button data-action="quit-to-menu" class="menu-btn">Main Menu</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== PORTRAIT MODE BLOCKING OVERLAY ================== -->
+    <div id="portrait-overlay">
+      <div class="rotate-icon">📱↻</div>
+      <p>Please rotate your device to landscape mode to play.</p>
+    </div>
+
+  </div>
+
+  <script src="controls.js"></script>
+  <script src="audio.js"></script>
+  <script src="world.js"></script>
+  <script src="ui.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

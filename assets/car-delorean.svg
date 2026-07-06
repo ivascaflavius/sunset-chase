@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 90" width="200" height="90">
+  <!-- DeLorean-style angular stainless silhouette with gullwing seam -->
+  <path d="M6 70 L22 42 L55 26 L145 26 L182 44 L194 70 Z" fill="#c9d6e3"/>
+  <line x1="55" y1="26" x2="70" y2="46" stroke="#7b2ff7" stroke-width="3"/>
+  <line x1="145" y1="26" x2="130" y2="46" stroke="#7b2ff7" stroke-width="3"/>
+  <rect x="70" y="46" width="60" height="4" fill="#7b2ff7"/>
+  <circle cx="44" cy="72" r="12" fill="#111"/>
+  <circle cx="156" cy="72" r="12" fill="#111"/>
+</svg>
