@@ -318,23 +318,30 @@ h3 { color: var(--neon-orange); margin-bottom: 4px; }
 .touch-zone {
   position: absolute;
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: bold; letter-spacing: 1px;
-  color: rgba(255,255,255,0.85);
+  color: rgba(255,255,255,0.9);
   background: rgba(45, 226, 230, 0.12);
   border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 16px;
+  border-radius: 20px;
   pointer-events: auto;
-  opacity: 0.35;
+  opacity: 0.38;
   transition: opacity 0.15s ease, box-shadow 0.15s ease;
 }
 .touch-zone.pressed {
-  opacity: 0.65;
-  box-shadow: 0 0 24px rgba(45,226,230,0.8);
+  opacity: 0.7;
+  box-shadow: 0 0 28px rgba(45,226,230,0.85);
 }
-.touch-left   { left: 3%;  bottom: 6%;  width: 22%; height: 30%; }
-.touch-right  { left: 27%; bottom: 6%;  width: 22%; height: 30%; }
-.touch-brake  { right: 3%; top: 8%;     width: 20%; height: 22%; background: rgba(255,62,165,0.12); }
-.touch-accel  { right: 3%; bottom: 6%;  width: 24%; height: 30%; background: rgba(255,209,102,0.12); }
+/* Icons are large and thumb-obvious — sized relative to the zone so they
+   scale correctly across phone/tablet viewport sizes. */
+.touch-icon {
+  width: 46%;
+  height: 46%;
+  max-width: 72px;
+  max-height: 72px;
+}
+.touch-left   { left: 2%;  bottom: 4%;  width: 26%; height: 34%; }
+.touch-right  { left: 29%; bottom: 4%;  width: 26%; height: 34%; }
+.touch-brake  { right: 2%; top: 14%;    width: 24%; height: 26%; background: rgba(255,62,165,0.14); }
+.touch-accel  { right: 2%; bottom: 4%;  width: 28%; height: 34%; background: rgba(255,209,102,0.14); }
 
 /* -------------------------------------------------------------------------
    PORTRAIT OVERLAY

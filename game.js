@@ -331,9 +331,11 @@
     ctx.restore();
   }
 
-  // Draws the player's car as a layered rear-view silhouette: fendered rear
-  // deck, wraparound light bar, cabin/roofline, license plate + chosen icon,
-  // thick-treaded spinning wheels, and a subtle lean/shake so it reads as a
+  // Draws the player's car as a layered rear-view silhouette modeled on 80s
+  // wedge supercars (Testarossa/Countach-style): a wide, low, flat rear deck
+  // with fender flares that mostly conceal the wheels, horizontal engine-deck
+  // louvers, a thin wraparound taillight strip, a small greenhouse/roof bump,
+  // license plate + chosen icon, and a subtle lean/shake so it reads as a
   // real car rather than a static box.
   function drawCar(w, h, styleName, flow01, brakeAmount) {
     const style = CAR_STYLES[styleName] || CAR_STYLES.testarossa;
@@ -341,8 +343,10 @@
     const shakeX = car.shake > 0 ? (Math.random() - 0.5) * car.shake * 10 : 0;
     const cx = w / 2 + car.heading * 34 + shakeX;
     const cy = h * 0.86;
-    const carW = w * 0.17;
-    const carH = carW * 0.52;
+    // Wider and flatter than before — real wedge supercars read as low & broad
+    // from behind, not tall and boxy.
+    const carW = w * 0.19;
+    const carH = carW * 0.46;
 
     ctx.save();
     ctx.translate(cx, cy);
@@ -352,55 +356,54 @@
     ctx.globalAlpha = 0.35;
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(0, carH * 0.6, carW * 0.58, carH * 0.16, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, carH * 0.62, carW * 0.6, carH * 0.14, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // --- Dark wheel-well cutouts (drawn before wheels/body so tires look tucked in) ---
-    ctx.fillStyle = '#050505';
+    // --- Individual ground-contact shadows beneath each wheel: a small flat
+    // ellipse that grounds the tire visually and reinforces its round shape
+    // (distinct from the single big shadow under the whole car above).
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#000';
     [-1, 1].forEach((side) => {
       ctx.beginPath();
-      ctx.ellipse(side * carW * 0.46, carH * 0.4, carW * 0.19, carH * 0.24, 0, 0, Math.PI * 2);
+      ctx.ellipse(side * carW * 0.39, carH * 0.62, carW * 0.15, carH * 0.05, 0, 0, Math.PI * 2);
       ctx.fill();
     });
+    ctx.globalAlpha = 1;
 
-    // --- Rear wheels (thick tires + spinning rims, tucked into the wells) ---
-    drawWheel(-carW * 0.46, carH * 0.42, carW * 0.16, car.wheelAngle);
-    drawWheel(carW * 0.46, carH * 0.42, carW * 0.16, car.wheelAngle);
+    // --- Rear wheels: smaller & positioned low so the fender flares conceal
+    // most of the tire — only a peek of tread shows beneath the body, as on
+    // a real low-slung sports car (not two big black balls dominating the view).
+    drawWheel(-carW * 0.39, carH * 0.5, carW * 0.115, car.wheelAngle);
+    drawWheel(carW * 0.39, carH * 0.5, carW * 0.115, car.wheelAngle);
 
-    // --- Body: curved rear deck with bulging fenders over each wheel well ---
+    // --- Body: wide flat rear deck with bulging fender flares over each wheel well ---
     if (flow01 > 0.05) { ctx.shadowColor = style.color; ctx.shadowBlur = 16 * flow01; }
     ctx.fillStyle = style.color;
     ctx.beginPath();
-    ctx.moveTo(-carW * 0.5, carH * 0.1);
-    // left fender bulge
-    ctx.quadraticCurveTo(-carW * 0.56, carH * 0.32, -carW * 0.4, carH * 0.34);
-    ctx.lineTo(carW * 0.4, carH * 0.34);
-    // right fender bulge
-    ctx.quadraticCurveTo(carW * 0.56, carH * 0.32, carW * 0.5, carH * 0.1);
-    ctx.quadraticCurveTo(carW * 0.5, -carH * 0.02, carW * 0.4, -carH * 0.05);
-    ctx.lineTo(-carW * 0.4, -carH * 0.05);
-    ctx.quadraticCurveTo(-carW * 0.5, -carH * 0.02, -carW * 0.5, carH * 0.1);
+    ctx.moveTo(-carW * 0.5, carH * 0.02);
+    // left fender flare bulges downward/outward to partially cover the wheel
+    ctx.quadraticCurveTo(-carW * 0.58, carH * 0.24, -carW * 0.48, carH * 0.4);
+    ctx.quadraticCurveTo(-carW * 0.4, carH * 0.46, -carW * 0.3, carH * 0.42);
+    ctx.lineTo(carW * 0.3, carH * 0.42);
+    // right fender flare
+    ctx.quadraticCurveTo(carW * 0.4, carH * 0.46, carW * 0.48, carH * 0.4);
+    ctx.quadraticCurveTo(carW * 0.58, carH * 0.24, carW * 0.5, carH * 0.02);
+    ctx.quadraticCurveTo(carW * 0.5, -carH * 0.06, carW * 0.4, -carH * 0.09);
+    ctx.lineTo(-carW * 0.4, -carH * 0.09);
+    ctx.quadraticCurveTo(-carW * 0.5, -carH * 0.06, -carW * 0.5, carH * 0.02);
     ctx.closePath();
     ctx.fill();
 
-    // Subtle rocker-panel shading along the lower body edge for depth
-    ctx.globalAlpha = 0.18;
+    // Lower rocker/valance shading for depth along the flare bottoms
+    ctx.globalAlpha = 0.2;
     ctx.fillStyle = '#000';
-    ctx.fillRect(-carW * 0.4, carH * 0.24, carW * 0.8, carH * 0.1);
+    ctx.beginPath();
+    ctx.ellipse(-carW * 0.39, carH * 0.42, carW * 0.16, carH * 0.08, 0, 0, Math.PI * 2);
+    ctx.ellipse(carW * 0.39, carH * 0.42, carW * 0.16, carH * 0.08, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.globalAlpha = 1;
-
-    // Rear bumper strip — a darker band along the very bottom of the body,
-    // with a pair of exhaust tips, so the underside reads as a real bumper
-    // rather than the body simply stopping (a big source of the "shoebox" look).
-    ctx.fillStyle = shadeStyleColor(style.color, -35);
-    ctx.fillRect(-carW * 0.42, carH * 0.3, carW * 0.84, carH * 0.08);
-    ctx.fillStyle = '#1a1a1a';
-    [-1, 1].forEach((side) => {
-      ctx.beginPath();
-      ctx.ellipse(side * carW * 0.28, carH * 0.35, carW * 0.035, carH * 0.045, 0, 0, Math.PI * 2);
-      ctx.fill();
-    });
 
     // Specular highlight streak across the upper body — sells a glossy,
     // curved painted surface instead of a flat-shaded block.
@@ -408,20 +411,38 @@
     ctx.globalAlpha = 0.16;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.moveTo(-carW * 0.34, -carH * 0.02);
-    ctx.quadraticCurveTo(0, -carH * 0.1, carW * 0.34, -carH * 0.02);
-    ctx.lineTo(carW * 0.3, carH * 0.02);
-    ctx.quadraticCurveTo(0, -carH * 0.05, -carW * 0.3, carH * 0.02);
+    ctx.moveTo(-carW * 0.36, -carH * 0.06);
+    ctx.quadraticCurveTo(0, -carH * 0.14, carW * 0.36, -carH * 0.06);
+    ctx.lineTo(carW * 0.32, -carH * 0.01);
+    ctx.quadraticCurveTo(0, -carH * 0.08, -carW * 0.32, -carH * 0.01);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
 
-    // --- Roof / cabin silhouette (narrower, set back, gently tapered) ---
+    // --- Engine-deck louvers: a bank of thin horizontal slats across the
+    // upper rear deck, the signature Testarossa/Countach "vent" detail that
+    // most reads as "a real car" rather than a plain painted box.
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = shadeStyleColor(style.color, -45);
+    ctx.lineWidth = Math.max(1, carH * 0.018);
+    const louverY0 = -carH * 0.07, louverY1 = carH * 0.0;
+    for (let i = 0; i < 6; i++) {
+      const ly = louverY0 + (louverY1 - louverY0) * (i / 5);
+      ctx.beginPath();
+      ctx.moveTo(-carW * 0.33, ly);
+      ctx.lineTo(carW * 0.33, ly);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // --- Roof / cabin silhouette: small greenhouse bump set well back &
+    // narrower than the body, like a fastback rear window — not a tall cabin.
     ctx.beginPath();
-    ctx.moveTo(-carW * 0.28, -carH * 0.05);
-    ctx.quadraticCurveTo(-carW * 0.24, -carH * (0.3 + style.wedge), -carW * 0.18, -carH * (0.28 + style.wedge));
-    ctx.lineTo(carW * 0.18, -carH * (0.28 + style.wedge));
-    ctx.quadraticCurveTo(carW * 0.24, -carH * (0.3 + style.wedge), carW * 0.28, -carH * 0.05);
+    ctx.moveTo(-carW * 0.24, -carH * 0.09);
+    ctx.quadraticCurveTo(-carW * 0.2, -carH * (0.32 + style.wedge), -carW * 0.14, -carH * (0.3 + style.wedge));
+    ctx.lineTo(carW * 0.14, -carH * (0.3 + style.wedge));
+    ctx.quadraticCurveTo(carW * 0.2, -carH * (0.32 + style.wedge), carW * 0.24, -carH * 0.09);
     ctx.closePath();
     ctx.fill();
     ctx.shadowBlur = 0;
@@ -429,45 +450,47 @@
     // Rear windshield accent
     ctx.fillStyle = style.accent;
     ctx.beginPath();
-    ctx.moveTo(-carW * 0.14, -carH * 0.06);
-    ctx.lineTo(-carW * 0.11, -carH * 0.21);
-    ctx.lineTo(carW * 0.11, -carH * 0.21);
-    ctx.lineTo(carW * 0.14, -carH * 0.06);
+    ctx.moveTo(-carW * 0.11, -carH * 0.1);
+    ctx.lineTo(-carW * 0.085, -carH * 0.24);
+    ctx.lineTo(carW * 0.085, -carH * 0.24);
+    ctx.lineTo(carW * 0.11, -carH * 0.1);
     ctx.closePath();
     ctx.fill();
 
-    // --- Wraparound rear light bar: full-width strip, split into corner clusters ---
+    // --- Wraparound rear light bar: thin full-width strip (not a chunky
+    // block), split into corner clusters — closer to the reference's slim
+    // taillight strip than the earlier thick bar.
     const braking = brakeAmount > 0.08;
     const steerAmt = car.wheelAngle;
     ctx.save();
     if (braking) { ctx.shadowColor = '#ff1030'; ctx.shadowBlur = 22; }
     // Faint connecting light strip across the deck (classic 80s wraparound look)
-    ctx.fillStyle = braking ? 'rgba(255,45,77,0.55)' : 'rgba(122,16,32,0.4)';
-    ctx.fillRect(-carW * 0.4, carH * 0.06, carW * 0.8, carH * 0.05);
+    ctx.fillStyle = braking ? 'rgba(255,45,77,0.5)' : 'rgba(122,16,32,0.35)';
+    ctx.fillRect(-carW * 0.42, carH * 0.1, carW * 0.84, carH * 0.035);
     // Bright corner clusters — the side currently turning glows amber instead of red
     [-1, 1].forEach((side) => {
       const turning = Math.abs(steerAmt) > 0.15 && Math.sign(steerAmt) === side;
       ctx.fillStyle = turning ? '#ffb84d' : (braking ? '#ff2d4d' : '#7a1020');
-      ctx.fillRect(side * carW * 0.47 - (side > 0 ? carW * 0.16 : 0), carH * 0.05, carW * 0.16, carH * 0.12);
+      ctx.fillRect(side * carW * 0.47 - (side > 0 ? carW * 0.15 : 0), carH * 0.08, carW * 0.15, carH * 0.075);
     });
     ctx.restore();
 
     // --- License plate, centered on the rear bumper, with the chosen icon beside the text ---
     ctx.save();
     ctx.fillStyle = plate.color || '#ffffff';
-    const plateW = carW * 0.4, plateH = carH * 0.13;
-    ctx.fillRect(-plateW / 2, carH * 0.16, plateW, plateH);
+    const plateW = carW * 0.38, plateH = carH * 0.16;
+    ctx.fillRect(-plateW / 2, carH * 0.2, plateW, plateH);
     ctx.strokeStyle = '#222';
     ctx.lineWidth = 1;
-    ctx.strokeRect(-plateW / 2, carH * 0.16, plateW, plateH);
+    ctx.strokeRect(-plateW / 2, carH * 0.2, plateW, plateH);
     ctx.fillStyle = (plate.color === '#111111') ? '#eee' : '#111';
     ctx.font = `${Math.max(6, plateH * 0.6)}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText((plate.text || 'SUNSET1').slice(0, 7), plateW * 0.1, carH * 0.16 + plateH / 2);
+    ctx.fillText((plate.text || 'SUNSET1').slice(0, 7), plateW * 0.1, carH * 0.2 + plateH / 2);
     // Small plate icon (palm/cactus/sun/skyline) on the left edge of the plate
     ctx.font = `${Math.max(7, plateH * 0.75)}px sans-serif`;
-    ctx.fillText(plate.icon || '🌴', -plateW / 2 + plateW * 0.1, carH * 0.16 + plateH / 2);
+    ctx.fillText(plate.icon || '🌴', -plateW / 2 + plateW * 0.1, carH * 0.2 + plateH / 2);
     ctx.restore();
 
     ctx.restore();

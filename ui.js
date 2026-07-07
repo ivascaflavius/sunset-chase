@@ -300,9 +300,19 @@ const UI = (() => {
   }
 
   // ----- HUD ----------------------------------------------------------------
+  // Touch controls should only appear on devices that actually use touch as
+  // their primary input (phones/tablets) — desktop users have keyboard/mouse
+  // and gamepad, so overlaying big translucent touch zones on top of the
+  // driving view would just be visual clutter for them.
+  function isTouchPrimaryDevice() {
+    const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    return hasTouch && coarsePointer;
+  }
+
   function showHud(show) {
     document.getElementById('hud').classList.toggle('hidden', !show);
-    document.getElementById('touch-controls').classList.toggle('hidden', !show);
+    document.getElementById('touch-controls').classList.toggle('hidden', !show || !isTouchPrimaryDevice());
   }
 
   function updateHud(distanceKm, zoneName, sunHeight01, speedKmh, timeSeconds, lineProximity01) {

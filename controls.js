@@ -27,6 +27,24 @@ const Controls = (() => {
   });
   window.addEventListener('keyup', (e) => keys.delete(e.code));
 
+  // If the window/tab loses focus while a key is held (alt-tab, opening dev
+  // tools, clicking outside the page, etc.), the browser can swallow the
+  // matching 'keyup' event — leaving that key "stuck" in the Set forever,
+  // which reads as the car silently auto-accelerating with nobody touching
+  // the gas. Clearing all held keys (and touch zones) whenever the page
+  // loses focus/visibility guarantees input never gets stuck on.
+  function clearAllInput() {
+    keys.clear();
+    touchState.left = false;
+    touchState.right = false;
+    touchState.accel = false;
+    touchState.brake = false;
+  }
+  window.addEventListener('blur', clearAllInput);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearAllInput();
+  });
+
   function readKeyboard() {
     let steer = 0, accel = 0, brake = 0;
     if (keys.has('ArrowLeft') || keys.has('KeyA')) steer -= 1;
@@ -40,7 +58,10 @@ const Controls = (() => {
   function readGamepad() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     for (const gp of pads) {
-      if (!gp) continue;
+      // Some browsers report a "phantom" gamepad slot that exists but isn't
+      // actually connected — skip those so a plugged-in-but-idle or fake
+      // device can't inject phantom accel/steer input.
+      if (!gp || !gp.connected) continue;
       const steer = Math.abs(gp.axes[0]) > 0.12 ? gp.axes[0] : 0;
       const accel = gp.buttons[7] ? gp.buttons[7].value : (gp.buttons[0] ? gp.buttons[0].value : 0);
       const brake = gp.buttons[6] ? gp.buttons[6].value : (gp.buttons[1] ? gp.buttons[1].value : 0);

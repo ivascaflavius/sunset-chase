@@ -138,11 +138,22 @@
     </div>
 
     <!-- ============================ TOUCH CONTROLS ========================= -->
+    <!-- Only shown on touch-primary devices (phones/tablets) — see UI.isTouchPrimaryDevice().
+         Icons (not text) mark each zone: chevrons for steering, stacked
+         up-chevrons for gas, an octagon "brake" glyph for braking. -->
     <div id="touch-controls" class="hidden">
-      <div id="touch-left" class="touch-zone touch-left"><span>◀</span></div>
-      <div id="touch-right" class="touch-zone touch-right"><span>▶</span></div>
-      <div id="touch-brake" class="touch-zone touch-brake"><span>BRAKE</span></div>
-      <div id="touch-accel" class="touch-zone touch-accel"><span>GAS</span></div>
+      <div id="touch-left" class="touch-zone touch-left" aria-label="Steer left">
+        <svg viewBox="0 0 24 24" class="touch-icon"><path d="M15 4 L7 12 L15 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div id="touch-right" class="touch-zone touch-right" aria-label="Steer right">
+        <svg viewBox="0 0 24 24" class="touch-icon"><path d="M9 4 L17 12 L9 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div id="touch-brake" class="touch-zone touch-brake" aria-label="Brake">
+        <svg viewBox="0 0 24 24" class="touch-icon"><polygon points="8,2 16,2 22,8 22,16 16,22 8,22 2,16 2,8" fill="none" stroke="currentColor" stroke-width="2.5"/><text x="12" y="15.5" text-anchor="middle" font-size="7" font-weight="bold" fill="currentColor" font-family="sans-serif">STOP</text></svg>
+      </div>
+      <div id="touch-accel" class="touch-zone touch-accel" aria-label="Accelerate">
+        <svg viewBox="0 0 24 24" class="touch-icon"><path d="M12 3 L20 12 L15 12 L15 21 L9 21 L9 12 L4 12 Z" fill="currentColor"/></svg>
+      </div>
     </div>
 
     <!-- ============================== PAUSE MENU =========================== -->

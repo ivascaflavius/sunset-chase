@@ -654,7 +654,9 @@ const World = (() => {
       ctx.stroke();
     } else if (scenicEvent.type === 'lightning') {
       // A brief, localized glow low on the horizon — reads as a distant storm
-      // flash rather than a full-screen tint.
+      // flash rather than a full-screen tint. Confined to a small rect around
+      // the flash point (not the whole top half) and kept dim so it never
+      // washes out the sky/sun.
       const flashProgress = scenicEvent.life;
       const dt1 = flashProgress - scenicEvent.flashAt;
       // Double-pulse: a quick bright flicker followed by a softer afterglow.
@@ -664,12 +666,15 @@ const World = (() => {
       if (intensity > 0) {
         const fx = scenicEvent.flashX * w;
         const fy = horizonY - h * 0.06;
-        const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, w * 0.32);
-        g.addColorStop(0, `rgba(223,233,255,${0.22 * intensity})`);
+        const radius = w * 0.2;
+        const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, radius);
+        g.addColorStop(0, `rgba(223,233,255,${0.12 * intensity})`);
         g.addColorStop(1, 'rgba(223,233,255,0)');
         ctx.globalAlpha = 1;
         ctx.fillStyle = g;
-        ctx.fillRect(0, 0, w, horizonY);
+        // Only fill the gradient's own bounding box, not the entire top half —
+        // keeps the effect a small localized flash instead of a screen-wide tint.
+        ctx.fillRect(Math.max(0, fx - radius), Math.max(0, fy - radius), radius * 2, radius * 2);
       }
     }
     ctx.restore();
@@ -677,11 +682,14 @@ const World = (() => {
 
   function renderWeatherOverlay(ctx, w, h, weatherOverride, horizonY) {
     if (weatherOverride === 'fog') {
-      const g = ctx.createLinearGradient(0, horizonY - h * 0.15, 0, horizonY + h * 0.1);
-      g.addColorStop(0, 'rgba(255,255,255,0)');
-      g.addColorStop(1, 'rgba(255,255,255,0.35)');
+      // A soft, low haze hugging the horizon line — kept tight and low-opacity
+      // so it reads as gentle ground mist, not a stark white band washing out
+      // the upper sky/sun.
+      const g = ctx.createLinearGradient(0, horizonY - h * 0.03, 0, horizonY + h * 0.07);
+      g.addColorStop(0, 'rgba(220,225,235,0)');
+      g.addColorStop(1, 'rgba(220,225,235,0.16)');
       ctx.fillStyle = g;
-      ctx.fillRect(0, horizonY - h * 0.15, w, h * 0.25);
+      ctx.fillRect(0, horizonY - h * 0.03, w, h * 0.1);
     } else if (weatherOverride === 'rain') {
       ctx.save();
       ctx.strokeStyle = 'rgba(190,220,255,0.25)';
