@@ -206,7 +206,7 @@ const UI = (() => {
     document.getElementById('stat-best').textContent = save.bestDistanceKm.toFixed(1) + ' km';
     document.getElementById('stat-lifetime').textContent = save.lifetimeKm.toFixed(1) + ' km';
     document.getElementById('stat-suspension').textContent = formatTime(save.suspensionBest);
-    document.getElementById('stat-zones').textContent = save.zonesEverVisited.length + ' / 4';
+    document.getElementById('stat-zones').textContent = save.zonesEverVisited.length + ' / ' + World.ZONES.length;
     document.getElementById('stat-streak').textContent = Math.round(save.streakBest) + 's';
 
     const list = document.getElementById('achievement-list');

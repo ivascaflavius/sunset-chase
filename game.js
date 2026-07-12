@@ -27,13 +27,22 @@
   window.addEventListener('resize', resizeCanvas);
 
   // ---------------------------------------------------------------------
-  // Car silhouette definitions (simple vector shapes, same physics for all)
+  // Car silhouette definitions (same physics for all; visual identity varies):
+  //   wedge   — roofline height/rake
+  //   tail    — taillight treatment: 'slats' (Testarossa full-width grille),
+  //             'quads' (Countach squared lamp pairs), 'band' (944 rounded
+  //             light bar), 'grid' (DeLorean rectangular clusters)
+  //   spoke   — wheel rim design: 'star' spokes, 'hole' (5-hole), 'dial' (phone-dial)
+  //   wing    — big rear wing (Countach)
+  //   bubble  — rounded glass hatch dome (944)
+  //   louvers — slatted rear-window cover (DeLorean)
+  //   exhaust — number of exhaust tips
   // ---------------------------------------------------------------------
   const CAR_STYLES = {
-    testarossa: { color: '#ff3ea5', accent: '#ffe27a', bodyLen: 1.0, wedge: 0.25 },
-    countach:   { color: '#2de2e6', accent: '#ffffff', bodyLen: 0.95, wedge: 0.4 },
-    '944':      { color: '#ffd166', accent: '#111111', bodyLen: 0.85, wedge: 0.12 },
-    delorean:   { color: '#c9d6e3', accent: '#7b2ff7', bodyLen: 0.9, wedge: 0.18 },
+    testarossa: { color: '#ff3ea5', accent: '#ffe27a', wedge: 0.25, tail: 'slats', spoke: 'star', exhaust: 4 },
+    countach:   { color: '#2de2e6', accent: '#ffffff', wedge: 0.4,  tail: 'quads', spoke: 'hole', exhaust: 4, wing: true },
+    '944':      { color: '#ffd166', accent: '#111111', wedge: 0.12, tail: 'band',  spoke: 'dial', exhaust: 1, bubble: true },
+    delorean:   { color: '#c9d6e3', accent: '#7b2ff7', wedge: 0.18, tail: 'grid',  spoke: 'star', exhaust: 2, louvers: true },
   };
 
   const SUN_STYLE_UNLOCKS = [
@@ -203,7 +212,7 @@
     const targetHeading = Math.max(-1, Math.min(1, car.lateralVel * 0.6 + input.steer * 0.25));
     car.heading += (targetHeading - car.heading) * Math.min(1, dt * 6);
     car.wheelAngle += (input.steer - car.wheelAngle) * Math.min(1, dt * 10);
-    wheelSpin += car.speed * dt * 22;
+    wheelSpin += car.speed * dt * 30;
 
     curCarX = car.x;
     curDistance = car.distance;
@@ -375,8 +384,8 @@
     // --- Rear wheels: smaller & positioned low so the fender flares conceal
     // most of the tire — only a peek of tread shows beneath the body, as on
     // a real low-slung sports car (not two big black balls dominating the view).
-    drawWheel(-carW * 0.39, carH * 0.5, carW * 0.115, car.wheelAngle);
-    drawWheel(carW * 0.39, carH * 0.5, carW * 0.115, car.wheelAngle);
+    drawWheel(-carW * 0.39, carH * 0.5, carW * 0.12, car.wheelAngle, car.speed, style.spoke);
+    drawWheel(carW * 0.39, carH * 0.5, carW * 0.12, car.wheelAngle, car.speed, style.spoke);
 
     // --- Body: wide flat rear deck with bulging fender flares over each wheel well ---
     if (flow01 > 0.05) { ctx.shadowColor = style.color; ctx.shadowBlur = 16 * flow01; }
@@ -436,44 +445,95 @@
     }
     ctx.restore();
 
-    // --- Roof / cabin silhouette: small greenhouse bump set well back &
-    // narrower than the body, like a fastback rear window — not a tall cabin.
-    ctx.beginPath();
-    ctx.moveTo(-carW * 0.24, -carH * 0.09);
-    ctx.quadraticCurveTo(-carW * 0.2, -carH * (0.32 + style.wedge), -carW * 0.14, -carH * (0.3 + style.wedge));
-    ctx.lineTo(carW * 0.14, -carH * (0.3 + style.wedge));
-    ctx.quadraticCurveTo(carW * 0.2, -carH * (0.32 + style.wedge), carW * 0.24, -carH * 0.09);
-    ctx.closePath();
-    ctx.fill();
+    // --- Roof / cabin silhouette. Two variants: the default low fastback
+    // greenhouse bump, or (944) a rounded glass hatch dome.
+    if (style.bubble) {
+      ctx.beginPath();
+      ctx.moveTo(-carW * 0.26, -carH * 0.09);
+      ctx.bezierCurveTo(-carW * 0.23, -carH * 0.55, carW * 0.23, -carH * 0.55, carW * 0.26, -carH * 0.09);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(-carW * 0.24, -carH * 0.09);
+      ctx.quadraticCurveTo(-carW * 0.2, -carH * (0.32 + style.wedge), -carW * 0.14, -carH * (0.3 + style.wedge));
+      ctx.lineTo(carW * 0.14, -carH * (0.3 + style.wedge));
+      ctx.quadraticCurveTo(carW * 0.2, -carH * (0.32 + style.wedge), carW * 0.24, -carH * 0.09);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.shadowBlur = 0;
 
-    // Rear windshield accent
-    ctx.fillStyle = style.accent;
-    ctx.beginPath();
-    ctx.moveTo(-carW * 0.11, -carH * 0.1);
-    ctx.lineTo(-carW * 0.085, -carH * 0.24);
-    ctx.lineTo(carW * 0.085, -carH * 0.24);
-    ctx.lineTo(carW * 0.11, -carH * 0.1);
-    ctx.closePath();
-    ctx.fill();
-
-    // --- Wraparound rear light bar: thin full-width strip (not a chunky
-    // block), split into corner clusters — closer to the reference's slim
-    // taillight strip than the earlier thick bar.
-    const braking = brakeAmount > 0.08;
-    const steerAmt = car.wheelAngle;
-    ctx.save();
-    if (braking) { ctx.shadowColor = '#ff1030'; ctx.shadowBlur = 22; }
-    // Faint connecting light strip across the deck (classic 80s wraparound look)
-    ctx.fillStyle = braking ? 'rgba(255,45,77,0.5)' : 'rgba(122,16,32,0.35)';
-    ctx.fillRect(-carW * 0.42, carH * 0.1, carW * 0.84, carH * 0.035);
-    // Bright corner clusters — the side currently turning glows amber instead of red
+    // Side mirrors poking out at the base of the greenhouse
+    ctx.fillStyle = shadeStyleColor(style.color, -25);
     [-1, 1].forEach((side) => {
-      const turning = Math.abs(steerAmt) > 0.15 && Math.sign(steerAmt) === side;
-      ctx.fillStyle = turning ? '#ffb84d' : (braking ? '#ff2d4d' : '#7a1020');
-      ctx.fillRect(side * carW * 0.47 - (side > 0 ? carW * 0.15 : 0), carH * 0.08, carW * 0.15, carH * 0.075);
+      ctx.fillRect(side * carW * 0.3 - carW * 0.025, -carH * 0.24, carW * 0.05, carH * 0.07);
     });
-    ctx.restore();
+
+    // Rear windshield accent (wider curved glass on the bubble hatch)
+    ctx.fillStyle = style.accent;
+    if (style.bubble) {
+      ctx.beginPath();
+      ctx.moveTo(-carW * 0.19, -carH * 0.11);
+      ctx.bezierCurveTo(-carW * 0.165, -carH * 0.44, carW * 0.165, -carH * 0.44, carW * 0.19, -carH * 0.11);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(-carW * 0.11, -carH * 0.1);
+      ctx.lineTo(-carW * 0.085, -carH * 0.24);
+      ctx.lineTo(carW * 0.085, -carH * 0.24);
+      ctx.lineTo(carW * 0.11, -carH * 0.1);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // DeLorean-style rear-window louvers: horizontal slats over the glass
+    if (style.louvers) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(20,20,25,0.75)';
+      ctx.lineWidth = Math.max(1, carH * 0.02);
+      for (let i = 0; i < 5; i++) {
+        const ly = -carH * (0.115 + i * 0.03);
+        const lw2 = carW * (0.105 - i * 0.008);
+        ctx.beginPath();
+        ctx.moveTo(-lw2, ly);
+        ctx.lineTo(lw2, ly);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Countach-style rear wing: two struts up from the deck + a curved blade
+    if (style.wing) {
+      ctx.fillStyle = shadeStyleColor(style.color, -35);
+      ctx.fillRect(-carW * 0.3, -carH * 0.38, carW * 0.05, carH * 0.31);
+      ctx.fillRect(carW * 0.25, -carH * 0.38, carW * 0.05, carH * 0.31);
+      ctx.beginPath();
+      ctx.moveTo(-carW * 0.5, -carH * 0.36);
+      ctx.quadraticCurveTo(0, -carH * 0.5, carW * 0.5, -carH * 0.36);
+      ctx.lineTo(carW * 0.5, -carH * 0.28);
+      ctx.quadraticCurveTo(0, -carH * 0.42, -carW * 0.5, -carH * 0.28);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // --- Model-specific taillights (brake glow + blinking amber turn signal)
+    drawTaillights(style, carW, carH, brakeAmount > 0.08, car.wheelAngle);
+
+    // --- Exhaust tips under the bumper
+    const pipes = style.exhaust || 2;
+    for (let i = 0; i < pipes; i++) {
+      const px = (i - (pipes - 1) / 2) * carW * 0.07;
+      ctx.fillStyle = '#2a2a2c';
+      ctx.beginPath();
+      ctx.ellipse(px, carH * 0.47, carW * 0.024, carH * 0.03, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(px, carH * 0.47, carW * 0.014, carH * 0.018, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // --- License plate, centered on the rear bumper, with the chosen icon beside the text ---
     ctx.save();
@@ -493,6 +553,67 @@
     ctx.fillText(plate.icon || '🌴', -plateW / 2 + plateW * 0.1, carH * 0.2 + plateH / 2);
     ctx.restore();
 
+    ctx.restore();
+  }
+
+  // Model-specific taillight treatments. All variants support a brake glow
+  // and a blinking amber turn signal on the side the car is steering toward.
+  function drawTaillights(style, carW, carH, braking, steerAmt) {
+    const litRed = braking ? '#ff2d4d' : '#8a1626';
+    const amberSide = Math.abs(steerAmt) > 0.15 ? Math.sign(steerAmt) : 0;
+    const blinkOn = Math.floor(performance.now() / 380) % 2 === 0;
+    ctx.save();
+    if (braking) { ctx.shadowColor = '#ff1030'; ctx.shadowBlur = 22; }
+
+    if (style.tail === 'slats') {
+      // Testarossa: full-width black grille with glowing strips behind slats
+      ctx.fillStyle = '#141216';
+      ctx.fillRect(-carW * 0.45, carH * 0.06, carW * 0.9, carH * 0.14);
+      for (let i = 0; i < 3; i++) {
+        const y = carH * (0.078 + i * 0.042);
+        [-1, 1].forEach((side) => {
+          const turn = side === amberSide && blinkOn;
+          ctx.fillStyle = turn ? '#ffb84d' : litRed;
+          ctx.globalAlpha = braking || turn ? 0.95 : 0.55;
+          ctx.fillRect(side === -1 ? -carW * 0.43 : carW * 0.02, y, carW * 0.41, carH * 0.02);
+        });
+      }
+      ctx.globalAlpha = 1;
+    } else if (style.tail === 'quads') {
+      // Countach: two pairs of squared lamps in the corners
+      [-1, 1].forEach((side) => {
+        const turn = side === amberSide && blinkOn;
+        for (let i = 0; i < 2; i++) {
+          const x = side * carW * (0.44 - i * 0.11) - carW * 0.045;
+          ctx.fillStyle = turn && i === 0 ? '#ffb84d' : litRed;
+          ctx.fillRect(x, carH * 0.07, carW * 0.09, carH * 0.09);
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          ctx.fillRect(x, carH * 0.07, carW * 0.09, carH * 0.022);
+        }
+      });
+    } else if (style.tail === 'band') {
+      // 944: soft full-width rounded light band with brighter corner lenses
+      ctx.fillStyle = braking ? 'rgba(255,45,77,0.55)' : 'rgba(122,16,32,0.4)';
+      pathCapsule(0, carH * 0.115, carW * 0.44, carH * 0.05);
+      ctx.fill();
+      [-1, 1].forEach((side) => {
+        const turn = side === amberSide && blinkOn;
+        ctx.fillStyle = turn ? '#ffb84d' : litRed;
+        pathCapsule(side * carW * 0.335, carH * 0.115, carW * 0.1, carH * 0.04);
+        ctx.fill();
+      });
+    } else {
+      // DeLorean: rectangular grid clusters, outermost cell is the signal
+      [-1, 1].forEach((side) => {
+        const turn = side === amberSide && blinkOn;
+        const x0 = side * carW * 0.45 - (side > 0 ? carW * 0.24 : 0);
+        for (let i = 0; i < 3; i++) {
+          const outermost = (side < 0 && i === 0) || (side > 0 && i === 2);
+          ctx.fillStyle = outermost && turn ? '#ffb84d' : litRed;
+          ctx.fillRect(x0 + i * carW * 0.085, carH * 0.07, carW * 0.07, carH * 0.1);
+        }
+      });
+    }
     ctx.restore();
   }
 
@@ -523,7 +644,12 @@
   // collapsing into a hairline sliver. Widens/opens up as the car steers,
   // revealing more of the metallic rim, just like a real wheel's visible
   // profile changes when turning.
-  function drawWheel(x, y, r, steerAngle) {
+  //
+  // Spin cues (all driven by the shared `wheelSpin` odometer):
+  //  - tread grooves scroll down the visible back of the tire
+  //  - rim spokes/holes rotate, smearing into a blur ring at high speed
+  //  - a valve-stem glint orbits the rim, showing rotation direction
+  function drawWheel(x, y, r, steerAngle, speed01, spokeStyle) {
     ctx.save();
     ctx.translate(x, y);
     const openness = Math.min(1, Math.abs(steerAngle)); // 0 = dead straight, 1 = full lock
@@ -531,10 +657,32 @@
     const halfW = r * (0.34 + openness * 0.4);
     ctx.rotate(steerAngle * 0.35); // slight tilt sells the angled-wheel look
 
-    // Outer tire: dark rubber capsule with a lighter sidewall ring stroke
+    // Outer tire: dark rubber capsule
     ctx.fillStyle = '#0a0a0a';
     pathCapsule(0, 0, halfW, r);
     ctx.fill();
+
+    // Scrolling tread: horizontal grooves rolling downward with wheel spin,
+    // bulged to wrap the tire's curvature — the wheel visibly rotates even
+    // viewed dead-on from behind while driving straight.
+    ctx.save();
+    pathCapsule(0, 0, halfW, r);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(58,58,58,0.9)';
+    ctx.lineWidth = Math.max(1, r * 0.07);
+    const spacing = r * 0.34;
+    const off = (((wheelSpin * r * 0.45) % spacing) + spacing) % spacing;
+    for (let ty = -r - spacing; ty <= r + spacing; ty += spacing) {
+      const yy = ty + off;
+      const bulge = Math.sqrt(Math.max(0, 1 - (yy / (r * 1.05)) ** 2));
+      ctx.beginPath();
+      ctx.moveTo(-halfW, yy);
+      ctx.quadraticCurveTo(0, yy + r * 0.14 * bulge, halfW, yy);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Lighter sidewall ring
     ctx.strokeStyle = 'rgba(70,70,70,0.65)';
     ctx.lineWidth = Math.max(1, r * 0.09);
     pathCapsule(0, 0, halfW * 0.82, r * 0.86);
@@ -546,20 +694,63 @@
     pathCapsule(0, 0, rimHalfW, rimR);
     ctx.fill();
 
-    // Rim spokes, squashed to match the capsule width so they rotate believably
+    // Rim detail (per car model), squashed to the capsule width & rotating
     ctx.save();
+    pathCapsule(0, 0, rimHalfW, rimR);
+    ctx.clip();
     ctx.scale(rimHalfW / rimR, 1);
     ctx.rotate(wheelSpin);
-    ctx.strokeStyle = `rgba(190,190,190,${0.45 + openness * 0.5})`;
-    ctx.lineWidth = Math.max(1, r * 0.14);
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(a) * rimR * 0.85, Math.sin(a) * rimR * 0.85);
-      ctx.stroke();
+    const detailAlpha = 0.45 + openness * 0.5;
+    if (spokeStyle === 'hole') {
+      // Countach-style 5-hole rim
+      ctx.fillStyle = `rgba(18,18,18,${detailAlpha})`;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * rimR * 0.55, Math.sin(a) * rimR * 0.55, rimR * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (spokeStyle === 'dial') {
+      // 944 "phone-dial" rim: ring of small bright circles
+      ctx.fillStyle = `rgba(205,205,210,${detailAlpha})`;
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * rimR * 0.6, Math.sin(a) * rimR * 0.6, rimR * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // Classic 5-spoke star
+      ctx.strokeStyle = `rgba(190,190,190,${detailAlpha})`;
+      ctx.lineWidth = Math.max(1, r * 0.14);
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * rimR * 0.85, Math.sin(a) * rimR * 0.85);
+        ctx.stroke();
+      }
     }
     ctx.restore();
+
+    // At high speed the rim detail smears into a translucent blur ring
+    if (speed01 > 0.55) {
+      ctx.globalAlpha = Math.min(0.5, (speed01 - 0.55) * 1.2);
+      ctx.fillStyle = '#4a4a4a';
+      pathCapsule(0, 0, rimHalfW * 0.9, rimR * 0.9);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Orbiting valve-stem glint — reads as rotation even at low speed
+    ctx.fillStyle = 'rgba(230,230,235,0.8)';
+    ctx.beginPath();
+    ctx.ellipse(
+      Math.cos(wheelSpin) * rimHalfW * 0.75,
+      Math.sin(wheelSpin) * rimR * 0.75,
+      Math.max(1, r * 0.05), Math.max(1, r * 0.05), 0, 0, Math.PI * 2
+    );
+    ctx.fill();
 
     // Center hub cap
     ctx.fillStyle = '#141414';
