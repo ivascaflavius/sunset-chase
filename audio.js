@@ -54,7 +54,8 @@ const Audio_ = (() => {
     [0, 4, 7, 4, 2, 4, 7, 2],
   ];
 
-  let motif = []; // current run's 8-note motif
+  let motif = [];  // current run's primary 8-note motif
+  let motifB = []; // contrasting answer phrase, swapped in periodically
   let audioLatencyComp = 0.05; // seconds, compensates for output latency
 
   function loadMotifMemory() {
@@ -141,6 +142,10 @@ const Audio_ = (() => {
 
     motif = loadMotifMemory();
     saveMotifMemory(motif);
+    // Pick a different contour as the "answer" phrase so the lead alternates
+    // between two related ideas instead of looping one line forever.
+    const bShape = MELODY_SHAPES[Math.floor(Math.random() * MELODY_SHAPES.length)];
+    motifB = bShape.map((i) => A_MINOR[i % A_MINOR.length]);
 
     nextNoteTime = ctx.currentTime + 0.1;
     scheduleTimer = setInterval(scheduler, 25);
@@ -184,7 +189,8 @@ const Audio_ = (() => {
   }
 
   function playStep(step, time) {
-    const chord = CHORDS[Math.floor(globalStep / CHORD_LENGTH_STEPS) % CHORDS.length];
+    const chordIndex = Math.floor(globalStep / CHORD_LENGTH_STEPS);
+    const chord = CHORDS[chordIndex % CHORDS.length];
     const barInChord = Math.floor((globalStep % CHORD_LENGTH_STEPS) / 16);
 
     // Sub-bass: a felt-more-than-heard sine an octave below the bass note,
@@ -193,19 +199,36 @@ const Audio_ = (() => {
       subPluck(chord.tones[0] * 0.25, time, 1.6);
     }
 
-    // Bass arpeggio: walks root / fifth-ish / octave / third across each bar
-    // instead of static quarter notes, for a rolling synthwave bassline.
+    // Four-on-the-floor kick, harder when the player is pushing the throttle
     if (step % 4 === 0) {
-      const bassPattern = [chord.tones[0] * 0.5, chord.tones[1] * 0.5, chord.tones[0], chord.tones[2] * 0.5];
+      kick(time, 0.32 + current.brightness * 0.22);
+    }
+    // Gated snare/clap on the backbeat — the classic synthwave "80s clap".
+    // Fades out as the sun sets so late-run audio turns moodier and sparser.
+    if ((step === 4 || step === 12) && current.darkness < 0.85) {
+      clap(time, (0.14 + current.bloom * 0.1) * (1 - current.darkness * 0.6));
+    }
+
+    // Bass: two rolling patterns that alternate per chord, so the low end
+    // has motion across the progression instead of one fixed loop.
+    if (step % 4 === 0) {
+      const patternA = [chord.tones[0] * 0.5, chord.tones[1] * 0.5, chord.tones[0], chord.tones[2] * 0.5];
+      const patternB = [chord.tones[0] * 0.5, chord.tones[0], chord.tones[2] * 0.5, chord.tones[1]];
+      const bassPattern = chordIndex % 2 === 0 ? patternA : patternB;
       pluck(bassGain, bassPattern[(step / 4) % bassPattern.length], time, 0.4, 'sawtooth', 0.42);
     }
 
-    // Lead melody: diatonic motif, rendered as a soft two-voice unison for width
+    // Lead melody: alternates between the main motif, its answer phrase and a
+    // reversed reprise every two chords — call-and-response instead of a loop.
     if (step % 2 === 0) {
-      const note = motif[(step / 2) % motif.length];
+      const phrase = Math.floor(globalStep / (CHORD_LENGTH_STEPS * 2)) % 3;
+      const m = phrase === 1 ? motifB : motif;
+      const idx = (step / 2) % m.length;
+      const note = phrase === 2 ? m[m.length - 1 - idx] : m[idx];
       const bright = 1 - current.darkness * 0.6;
       const freq = note * (0.5 + bright * 0.5 + 0.5);
-      pluckLead(freq, time, 0.26);
+      // Occasional rest breathes air into the line (skipped at phrase starts)
+      if (!(idx !== 0 && Math.random() < 0.08)) pluckLead(freq, time, 0.26);
     }
 
     // Counter-arpeggio picking out the current chord's tones — adds harmonic
@@ -301,6 +324,68 @@ const Audio_ = (() => {
     });
   }
 
+  // Analog-style kick: a sine that pitch-drops from ~150Hz to ~42Hz. Routed
+  // through subGain so it bypasses the reactive lowpass and always thumps.
+  function kick(time, vol) {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(42, time + 0.11);
+    g.gain.setValueAtTime(vol, time);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + 0.26);
+    osc.connect(g);
+    g.connect(subGain);
+    osc.start(time);
+    osc.stop(time + 0.3);
+  }
+
+  // 80s gated clap: two quick band-passed noise bursts (flam + main hit).
+  function clap(time, vol) {
+    if (!noiseBuffer) return;
+    [0, 0.018].forEach((offset, i) => {
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 1700;
+      bp.Q.value = 1.2;
+      const g = ctx.createGain();
+      const v = i === 0 ? vol * 0.5 : vol;
+      g.gain.setValueAtTime(v, time + offset);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + offset + 0.09);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(panNode); // bypass the reactive lowpass so the snap stays crisp
+      src.start(time + offset);
+      src.stop(time + offset + 0.1);
+    });
+  }
+
+  // Distant thunder rumble for storm lightning: a long low-passed noise
+  // swell that rolls in shortly after the flash.
+  function thunder(strength = 1) {
+    if (!ctx || !enabled) return;
+    const dur = 1.8 + Math.random() * 1.2;
+    const src = ctx.createBufferSource();
+    src.buffer = makeNoiseBuffer(dur);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 180 + Math.random() * 120;
+    const g = ctx.createGain();
+    const t = ctx.currentTime + 0.2 + Math.random() * 0.4; // flash-to-boom delay
+    const vol = Math.min(0.55, 0.3 * strength + 0.15);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.12);
+    g.gain.exponentialRampToValueAtTime(vol * 0.4, t + dur * 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(lp);
+    lp.connect(g);
+    g.connect(masterGain);
+    src.start(t);
+    src.stop(t + dur);
+  }
+
   // A short, high-passed noise burst standing in for a soft hi-hat/shaker.
   function hat(time, vol) {
     if (!noiseBuffer) return;
@@ -378,5 +463,5 @@ const Audio_ = (() => {
 
   function getLatencyCompensation() { return audioLatencyComp; }
 
-  return { init, resume, stop, updateFromDriving, setIntensity, setEnabled, getLatencyCompensation };
+  return { init, resume, stop, updateFromDriving, setIntensity, setEnabled, getLatencyCompensation, thunder };
 })();

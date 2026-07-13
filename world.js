@@ -30,32 +30,32 @@ const World = (() => {
   const ZONE_THEMES = {
     'Palm Zone': {
       grass: '#1c6b5e', rumbleA: '#e8e8e8', rumbleB: '#c0392b', road: '#2b2540',
-      sky: ['#2b0d45', '#7a2e6b', '#ff7657'], objDensity: 0.8,
-      objTypes: [['palm', 0.62], ['bush', 0.24], ['rock', 0.14]],
+      sky: ['#2b0d45', '#7a2e6b', '#ff7657'], objDensity: 1.25,
+      objTypes: [['palm', 0.42], ['bush', 0.2], ['shrub', 0.16], ['tree', 0.1], ['rock', 0.12]],
       weathers: [['clear', 0.6], ['rain', 0.25], ['fog', 0.15]],
     },
     'Desert Zone': {
       grass: '#7a5230', rumbleA: '#e8d8b0', rumbleB: '#b5651d', road: '#3a2a3a',
-      sky: ['#3a1030', '#a3406b', '#ffb56b'], objDensity: 0.6,
-      objTypes: [['cactus', 0.5], ['rock', 0.28], ['drybush', 0.22]],
+      sky: ['#3a1030', '#a3406b', '#ffb56b'], objDensity: 0.95,
+      objTypes: [['cactus', 0.4], ['rock', 0.22], ['drybush', 0.22], ['shrub', 0.16]],
       weathers: [['clear', 0.6], ['dust', 0.4]],
     },
     'Meadow Zone': {
       grass: '#295c31', rumbleA: '#e8e8e8', rumbleB: '#4d7c2a', road: '#2c2b3d',
-      sky: ['#1d2a52', '#63589e', '#ff9e6b'], objDensity: 0.95,
-      objTypes: [['tree', 0.42], ['pine', 0.3], ['bush', 0.28]],
+      sky: ['#1d2a52', '#63589e', '#ff9e6b'], objDensity: 1.5,
+      objTypes: [['tree', 0.32], ['pine', 0.24], ['bush', 0.2], ['shrub', 0.24]],
       weathers: [['clear', 0.4], ['rain', 0.35], ['fog', 0.25]],
     },
     'Coastal Zone': {
       grass: '#123a4a', rumbleA: '#e8e8e8', rumbleB: '#2472a4', road: '#20263f',
-      sky: ['#0f2a4a', '#3d6ea5', '#ffd166'], objDensity: 0.45,
-      objTypes: [['palm', 0.5], ['rock', 0.3], ['bush', 0.2]],
+      sky: ['#0f2a4a', '#3d6ea5', '#ffd166'], objDensity: 0.9,
+      objTypes: [['palm', 0.4], ['rock', 0.2], ['bush', 0.18], ['shrub', 0.14], ['tree', 0.08]],
       weathers: [['clear', 0.5], ['fog', 0.3], ['rain', 0.2]],
     },
     'Nightfall Zone': {
       grass: '#0c0c1c', rumbleA: '#dadada', rumbleB: '#6a2fbf', road: '#141225',
-      sky: ['#050014', '#1c0a3a', '#5b2a86'], objDensity: 0.35,
-      objTypes: [['skyline', 0.7], ['pine', 0.15], ['rock', 0.15]],
+      sky: ['#050014', '#1c0a3a', '#5b2a86'], objDensity: 0.6,
+      objTypes: [['skyline', 0.55], ['pine', 0.15], ['rock', 0.12], ['shrub', 0.18]],
       weathers: [['clear', 0.8], ['fog', 0.2]],
     },
   };
@@ -183,6 +183,18 @@ const World = (() => {
           lean: rng() * 2 - 1,
           v: rng(), // per-instance variation seed (arm heights, window patterns…)
         });
+        // Undergrowth companion: a smaller bush/shrub clumped nearby, so the
+        // roadside reads as layered vegetation rather than lone specimens.
+        if (rng() < 0.55) {
+          seg.sprites.push({
+            side: rng() < 0.75 ? side : -side,
+            offset: 1.05 + rng() * 2.2,
+            type: rng() < 0.5 ? 'shrub' : (theme.objTypes.some(([t]) => t === 'drybush') ? 'drybush' : 'bush'),
+            scale: 0.5 + rng() * 0.45,
+            lean: rng() * 2 - 1,
+            v: rng(),
+          });
+        }
       }
       // Rare landmark (neon diner, pyramid, radio tower) roughly every ~900 segments
       if (i % 900 === Math.floor(rng() * 20)) {
@@ -216,9 +228,6 @@ const World = (() => {
     proceduralExtend(160, curvatureSetting);
     scatterSprites(0, segments.length);
     trackLength = segments.length * SEGMENT_LENGTH;
-
-    // Seed a light dust-mote particle field
-    for (let i = 0; i < 40; i++) spawnParticle(true);
   }
 
   function ensureAhead(playerSegmentIndex, curvatureSetting) {
@@ -251,7 +260,7 @@ const World = (() => {
   // lumpy cumulus shape with a lit underside instead of a single flat ellipse.
   function makeClouds() {
     clouds = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 12; i++) {
       const puffs = [];
       const n = 4 + Math.floor(rng() * 4);
       for (let p = 0; p < n; p++) {
@@ -296,39 +305,74 @@ const World = (() => {
   }
 
   // ---------------------------------------------------------------------
-  // Particles (dust motes / horizon glints / fog wisps)
+  // Particles — wind-blown dust, only during desert dust storms (there is no
+  // longer a permanent ambient mote field; particles are a storm effect).
   // ---------------------------------------------------------------------
-  function spawnParticle(initial = false) {
+  function spawnParticle() {
     particles.push({
-      x: Math.random(),
-      y: 0.5 + Math.random() * 0.45,
-      speed: 0.02 + Math.random() * 0.05,
-      size: 0.6 + Math.random() * 1.8,
-      alpha: 0.15 + Math.random() * 0.25,
-      life: initial ? Math.random() * 10 : 0,
+      x: 1.05 + Math.random() * 0.1,        // enter from the right edge
+      y: 0.15 + Math.random() * 0.8,
+      speed: 0.35 + Math.random() * 0.5,     // fast, wind-driven drift
+      wobble: Math.random() * Math.PI * 2,
+      size: 1.2 + Math.random() * 3.2,
+      alpha: 0.25 + Math.random() * 0.35,
+      life: 0,
     });
   }
 
   function updateParticles(dt) {
+    const dust = weatherAmount('dust');
     particles.forEach((p) => {
-      p.x -= p.speed * dt * 0.3;
+      p.x -= p.speed * dt;
+      p.wobble += dt * 6;
+      p.y += Math.sin(p.wobble) * dt * 0.02;
       p.life += dt;
-      if (p.x < -0.05) p.x = 1.05;
     });
-    if (particles.length < 40 && Math.random() < 0.02) spawnParticle();
+    particles = particles.filter((p) => p.x > -0.08);
+    // Population tracks storm strength: heavy churn mid-storm, none when clear
+    const targetCount = Math.floor(110 * dust);
+    while (particles.length < targetCount) spawnParticle();
+    if (dust < 0.02 && particles.length > 0 && Math.random() < 0.3) particles.pop();
   }
 
   // ---------------------------------------------------------------------
   // Rare scenic events & weather
   // ---------------------------------------------------------------------
+  // Builds a jagged lightning-bolt polyline from the given sky point down
+  // toward the horizon, used for storm strikes during heavy rain.
+  function makeBoltPoints(x0) {
+    const pts = [[x0, 0.08 + Math.random() * 0.08]];
+    let x = x0;
+    const steps = 5 + Math.floor(Math.random() * 3);
+    for (let i = 1; i <= steps; i++) {
+      x += (Math.random() - 0.5) * 0.06;
+      pts.push([x, pts[0][1] + (i / steps) * (0.32 + Math.random() * 0.08)]);
+    }
+    return pts;
+  }
+
   function updateScenicEvents(dt) {
     scenicTimer -= dt;
+    const rainNow = weatherAmount('rain');
     if (!scenicEvent && scenicTimer <= 0) {
       const roll = Math.random();
-      if (roll < 0.4) scenicEvent = { type: 'bird', x: -0.1, y: 0.15 + Math.random() * 0.15, life: 0 };
-      else if (roll < 0.7) scenicEvent = { type: 'shootingstar', x: 0.9, y: 0.05 + Math.random() * 0.15, life: 0 };
-      else scenicEvent = { type: 'lightning', life: 0, flashAt: 0.3 + Math.random() * 0.4, flashX: 0.15 + Math.random() * 0.7 };
-      scenicTimer = 14 + Math.random() * 18;
+      if (rainNow > 0.4) {
+        // Storm mode: frequent, bright lightning strikes with visible bolts
+        scenicEvent = {
+          type: 'lightning', life: 0,
+          flashAt: 0.15 + Math.random() * 0.3,
+          flashX: 0.15 + Math.random() * 0.7,
+          strength: 0.7 + rainNow * 0.5,
+          bolt: makeBoltPoints(0.15 + Math.random() * 0.7),
+          thunderQueued: false,
+        };
+        scenicTimer = 5 + Math.random() * 8;
+      } else {
+        if (roll < 0.4) scenicEvent = { type: 'bird', x: -0.1, y: 0.15 + Math.random() * 0.15, life: 0 };
+        else if (roll < 0.7) scenicEvent = { type: 'shootingstar', x: 0.9, y: 0.05 + Math.random() * 0.15, life: 0 };
+        else scenicEvent = { type: 'lightning', life: 0, flashAt: 0.3 + Math.random() * 0.4, flashX: 0.15 + Math.random() * 0.7, strength: 0.35 };
+        scenicTimer = 14 + Math.random() * 18;
+      }
     }
     if (scenicEvent) {
       scenicEvent.life += dt;
@@ -340,6 +384,11 @@ const World = (() => {
         scenicEvent.y += dt * 0.3;
         if (scenicEvent.life > 1.4) scenicEvent = null;
       } else if (scenicEvent.type === 'lightning') {
+        // Fire a thunder rumble (via the audio engine) once, as the flash hits
+        if (!scenicEvent.thunderQueued && scenicEvent.life >= scenicEvent.flashAt && scenicEvent.strength > 0.5) {
+          scenicEvent.thunderQueued = true;
+          if (typeof Audio_ !== 'undefined' && Audio_.thunder) Audio_.thunder(scenicEvent.strength);
+        }
         if (scenicEvent.life > 1.0) scenicEvent = null;
       }
     }
@@ -406,7 +455,8 @@ const World = (() => {
     const rain = weatherAmount('rain');
     const dust = weatherAmount('dust');
     if (rain > 0.01) {
-      ctx.fillStyle = `rgba(28,36,58,${0.3 * rain})`;
+      // Storm gloom: noticeably darker, colder sky under rain clouds
+      ctx.fillStyle = `rgba(22,28,48,${0.42 * rain})`;
       ctx.fillRect(0, 0, w, horizonY);
     }
     if (dust > 0.01) {
@@ -483,7 +533,7 @@ const World = (() => {
   function drawClouds(ctx, w, horizonY, theme) {
     const rain = weatherAmount('rain');
     const dust = weatherAmount('dust');
-    const coverage = Math.min(1, 0.55 + rain * 0.45 - dust * 0.45);
+    const coverage = Math.min(1, 0.5 + rain * 0.5 - dust * 0.45);
     if (coverage <= 0.02) return;
     const bodyCol = mixColor(mixColor(theme.sky[0], '#8d86a8', 0.4), '#3c4254', rain);
     const litCol = mixColor(theme.sky[2], '#5a6273', rain * 0.85);
@@ -553,72 +603,40 @@ const World = (() => {
     ctx.restore();
   }
 
+  // A realistic setting sun: a solid warm disc (no stripes, no banded
+  // gradient) whose color slides from bright orange toward deep red — and
+  // whose light output fades — as it sinks toward the horizon. A soft
+  // blurred rim + atmospheric halo stand in for glare instead of hard edges.
   function drawSun(ctx, x, y, r, horizonY, sunset01, flow01, style) {
     ctx.save();
-    // Clip so the sun is cut off by the horizon line for the classic look
+    // Clip so the sun is cut off by the horizon line
     ctx.beginPath();
     ctx.rect(0, 0, ctx.canvas.width, horizonY);
     ctx.clip();
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.clip();
+    const warmth = Math.min(1, sunset01 * 1.15); // 0 = high & bright, 1 = nearly set & deep red
+    const core = mixColor('#ffb347', '#ff4f2a', warmth);
+    const rim = mixColor('#ff8c3c', '#d63317', warmth);
 
-    if (style === 'pastel') {
-      const g = ctx.createLinearGradient(x, y - r, x, y + r);
-      g.addColorStop(0, '#ffe1f0');
-      g.addColorStop(1, '#ffb3c6');
-      ctx.fillStyle = g;
-      ctx.fillRect(x - r, y - r, r * 2, r * 2);
-    } else if (style === 'purple') {
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, '#c9a3ff');
-      g.addColorStop(1, '#2b0a4a');
-      ctx.fillStyle = g;
-      ctx.fillRect(x - r, y - r, r * 2, r * 2);
-    } else if (style === 'vaporwave') {
-      const g = ctx.createLinearGradient(x, y - r, x, y + r);
-      g.addColorStop(0, '#ff71ce');
-      g.addColorStop(1, '#01cdfe');
-      ctx.fillStyle = g;
-      ctx.fillRect(x - r, y - r, r * 2, r * 2);
-      // grid lines inside sun
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 2;
-      for (let i = -4; i <= 4; i++) {
-        ctx.beginPath(); ctx.moveTo(x + i * (r / 4), y - r); ctx.lineTo(x + i * (r / 4), y + r); ctx.stroke();
-      }
-    } else {
-      // classic synthwave stripes
-      const g = ctx.createLinearGradient(x, y - r, x, y + r);
-      g.addColorStop(0, '#ffe27a');
-      g.addColorStop(0.5, '#ff8c42');
-      g.addColorStop(1, '#ff3ea5');
-      ctx.fillStyle = g;
-      ctx.fillRect(x - r, y - r, r * 2, r * 2);
-    }
-
-    if (style !== 'vaporwave') {
-      // Horizontal retro stripes cut across the lower half of the sun
-      ctx.fillStyle = 'rgba(10,0,20,0.55)';
-      const stripeCount = 6;
-      for (let i = 0; i < stripeCount; i++) {
-        const sy = y + r * (0.05 + i * 0.13);
-        const sh = r * 0.045;
-        ctx.fillRect(x - r, sy, r * 2, sh);
-      }
-    }
-    ctx.restore();
-
-    // Glow / shimmer, brighter during flow streaks
+    // Atmospheric halo around the disc, dimming as the sun sinks
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.35 + flow01 * 0.35;
-    const glow = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 2.1);
-    glow.addColorStop(0, 'rgba(255,180,120,0.55)');
-    glow.addColorStop(1, 'rgba(255,180,120,0)');
+    ctx.globalAlpha = (0.4 + flow01 * 0.3) * (1 - warmth * 0.5);
+    const glow = ctx.createRadialGradient(x, y, r * 0.55, x, y, r * 2.2);
+    glow.addColorStop(0, 'rgba(255,150,80,0.5)');
+    glow.addColorStop(1, 'rgba(255,110,60,0)');
     ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(x, y, r * 2.1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, Math.PI * 2); ctx.fill();
+
+    // Solid disc with a softly blurred rim (shadowBlur fakes the glare edge)
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = core;
+    ctx.shadowColor = rim;
+    ctx.shadowBlur = r * 0.35;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.92, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.restore();
   }
 
@@ -668,54 +686,64 @@ const World = (() => {
   // reads as a solid, full silhouette rather than a spidery wireframe.
   // `C` maps a base color through the distance-haze blend.
   function drawCoconutPalm(ctx, size, lean, C) {
-    const trunkH = size * 1.9; // tall & slender, taller than the old version
-    const leanX = size * (0.18 + lean * 0.15);
+    const trunkH = size * 2.2; // tall Caribbean coconut proportions
+    // Pronounced arcing lean — coconut palms on a shoreline bow well off
+    // vertical rather than standing up like telephone poles.
+    const leanX = size * (0.34 + lean * 0.28);
 
-    // Trunk: gentle S-curve so it doesn't look like a stiff pole
-    ctx.fillStyle = C('#42301f');
+    // Trunk: strongly curved, wider at the base tapering toward the crown
+    ctx.fillStyle = C('#4a3624');
     ctx.beginPath();
-    ctx.moveTo(-size * 0.05, 0);
-    ctx.quadraticCurveTo(leanX * 0.5, -trunkH * 0.5, leanX, -trunkH);
-    ctx.lineTo(leanX + size * 0.09, -trunkH);
-    ctx.quadraticCurveTo(leanX * 0.5 + size * 0.09, -trunkH * 0.5, size * 0.05, 0);
+    ctx.moveTo(-size * 0.09, 0);
+    ctx.quadraticCurveTo(leanX * 0.25, -trunkH * 0.55, leanX, -trunkH);
+    ctx.lineTo(leanX + size * 0.07, -trunkH);
+    ctx.quadraticCurveTo(leanX * 0.25 + size * 0.12, -trunkH * 0.52, size * 0.11, 0);
     ctx.closePath();
     ctx.fill();
+    // Ring ridges up the trunk — the coconut palm's segmented bark
+    ctx.strokeStyle = C('#3a2a1a');
+    ctx.lineWidth = Math.max(0.6, size * 0.015);
+    for (let i = 1; i <= 4; i++) {
+      const t = i / 5;
+      const rx = (-size * 0.09) * (1 - t) + leanX * t + leanX * 0.25 * t * (1 - t) * 2;
+      ctx.beginPath();
+      ctx.moveTo(rx - size * 0.02, -trunkH * t);
+      ctx.lineTo(rx + size * (0.1 - t * 0.03), -trunkH * t);
+      ctx.stroke();
+    }
 
     // Crown sits at the top of the leaning trunk
-    const crownX = leanX + size * 0.045;
+    const crownX = leanX + size * 0.035;
     const crownY = -trunkH;
 
     ctx.save();
     ctx.translate(crownX, crownY);
 
     // A solid hub fill beneath the fronds merges their bases into one clump
-    // (avoids gaps between individual blades showing through to the sky).
     ctx.fillStyle = C('#173c25');
     ctx.beginPath();
     ctx.ellipse(0, size * 0.06, size * 0.22, size * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Fronds: solid tapered leaf-blade shapes that rise from the crown then
-    // droop back down at the tip — full width near the base, narrowing to a
-    // point at the tip, like a real coconut/queen palm frond.
-    const frondAngles = [-72, -42, -16, 8, 32, 58, 90, 122];
+    // Fronds: long blades that arch up and out, then droop hard at the tips —
+    // the umbrella-like coconut crown, wider and droopier than before.
+    const frondAngles = [-80, -52, -26, -4, 18, 42, 66, 96, 126];
     frondAngles.forEach((deg, i) => {
       const a = (deg * Math.PI) / 180;
-      const len = size * (0.95 + Math.abs(Math.sin(a)) * 0.3);
+      const len = size * (1.1 + Math.abs(Math.sin(a)) * 0.35);
       const dirX = Math.sin(a);
-      const dirY = -Math.abs(Math.cos(a)) * 0.7 - 0.3;
+      const dirY = -Math.abs(Math.cos(a)) * 0.6 - 0.25;
       const dLen = Math.hypot(dirX, dirY) || 1;
       const ndx = dirX / dLen, ndy = dirY / dLen;
       const perpX = -ndy, perpY = ndx; // perpendicular direction, for blade width
 
-      const midX = dirX * len * 0.55;
-      const midY = dirY * len * 0.55;
-      const endX = dirX * len * 1.05;
-      const endY = midY + len * 0.5; // droop back downward at the tip
+      const midX = dirX * len * 0.6;
+      const midY = dirY * len * 0.5;
+      const endX = dirX * len * 1.12;
+      const endY = midY + len * 0.68; // strong droop back downward at the tip
 
-      // Slightly vary blade width per-frond for a more organic, less uniform canopy
-      const baseW = size * (0.15 + (i % 3) * 0.02);
-      const midW = size * 0.09;
+      const baseW = size * (0.14 + (i % 3) * 0.02);
+      const midW = size * 0.085;
 
       // Alternate two green tones so overlapping fronds separate visually
       ctx.fillStyle = C(i % 2 === 0 ? '#1e5031' : '#173f27');
@@ -727,11 +755,11 @@ const World = (() => {
       ctx.fill();
     });
 
-    // A few coconuts clustered under the crown
+    // Coconut cluster nestled under the crown
     ctx.fillStyle = C('#2f2115');
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       ctx.beginPath();
-      ctx.arc((i - 1) * size * 0.07, size * 0.06, size * 0.05, 0, Math.PI * 2);
+      ctx.arc((i - 1.5) * size * 0.075, size * 0.07, size * 0.055, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -826,6 +854,24 @@ const World = (() => {
     });
   }
 
+  // Larger rounded shrub: a mound of leaf lobes with a lighter lit top —
+  // fills the middle ground between low bushes and full trees.
+  function drawShrub(ctx, size, v, C) {
+    ctx.fillStyle = C('#24512c');
+    [[-0.3, -0.12, 0.22], [-0.1, -0.26, 0.26], [0.14, -0.22, 0.24], [0.32, -0.1, 0.2], [0, -0.08, 0.3]].forEach(([bx, by, br]) => {
+      ctx.beginPath();
+      ctx.ellipse(bx * size, by * size, br * size, br * size * 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.fillStyle = C('#3a7040');
+    [[-0.14, -0.3, 0.13], [0.1, -0.32, 0.12], [0.24, -0.2, 0.1]].forEach(([bx, by, br], i) => {
+      if ((i + Math.floor(v * 10)) % 3 === 2) return; // per-instance variation
+      ctx.beginPath();
+      ctx.ellipse(bx * size, by * size, br * size, br * size * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
   // Boulder with a lit facet toward the sunset.
   function drawRock(ctx, size, v, C) {
     ctx.fillStyle = C('#4f4759');
@@ -866,7 +912,21 @@ const World = (() => {
   }
 
   // Roadside object size multipliers so filler objects stay low & small
-  const SPRITE_SIZE_MULT = { bush: 0.5, drybush: 0.45, rock: 0.42 };
+  const SPRITE_SIZE_MULT = { bush: 0.5, drybush: 0.45, rock: 0.42, shrub: 0.62 };
+
+  // Large flora gets a dark silhouette outline pass so trees stay readable
+  // while flying past at speed instead of smearing into the grass color.
+  const OUTLINED_TYPES = { palm: 1, tree: 1, pine: 1, cactus: 1 };
+
+  // Renders one flora/rock shape with the given color mapper `C`. Called
+  // twice for outlined types: once as a slightly enlarged dark silhouette,
+  // then again with real colors on top.
+  function drawFloraShape(ctx, type, size, lean, v, C) {
+    if (type === 'palm') drawCoconutPalm(ctx, size, lean, C);
+    else if (type === 'cactus') drawSaguaro(ctx, size * 1.5, v, C);
+    else if (type === 'tree') drawLeafyTree(ctx, size * 1.35, lean, C);
+    else if (type === 'pine') drawPine(ctx, size * 1.7, C);
+  }
 
   // Draws a roadside sprite at a projected position. `haze` (0..1) blends the
   // sprite's colors toward the horizon color, giving atmospheric perspective —
@@ -881,18 +941,23 @@ const World = (() => {
     ctx.save();
     ctx.translate(sx, sy);
     ctx.fillStyle = 'rgba(5,2,12,0.9)'; // default for landmark shapes below
-    if (sprite.type === 'palm') {
-      drawCoconutPalm(ctx, size, sprite.lean || 0, C);
-    } else if (sprite.type === 'cactus') {
-      drawSaguaro(ctx, size * 1.5, v, C);
-    } else if (sprite.type === 'tree') {
-      drawLeafyTree(ctx, size * 1.35, sprite.lean || 0, C);
-    } else if (sprite.type === 'pine') {
-      drawPine(ctx, size * 1.7, C);
+    if (OUTLINED_TYPES[sprite.type]) {
+      // Outline pass: same shape, slightly enlarged, in a flat dark ink —
+      // skipped for far-off (heavily hazed) sprites where it would just mud.
+      if (size > 12 && haze < 0.45) {
+        const O = () => 'rgba(9,4,16,0.8)';
+        ctx.save();
+        ctx.scale(1.08, 1.05);
+        drawFloraShape(ctx, sprite.type, size, sprite.lean || 0, v, O);
+        ctx.restore();
+      }
+      drawFloraShape(ctx, sprite.type, size, sprite.lean || 0, v, C);
     } else if (sprite.type === 'bush') {
       drawBush(ctx, size, C, '#2c5230');
     } else if (sprite.type === 'drybush') {
       drawBush(ctx, size, C, '#6b5a33');
+    } else if (sprite.type === 'shrub') {
+      drawShrub(ctx, size, v, C);
     } else if (sprite.type === 'rock') {
       drawRock(ctx, size, v, C);
     } else if (sprite.type === 'skyline') {
@@ -1040,12 +1105,16 @@ const World = (() => {
   }
 
   function renderParticles(ctx, w, h) {
+    if (particles.length === 0) return;
+    const dust = weatherAmount('dust');
+    if (dust < 0.02) return;
     ctx.save();
+    ctx.fillStyle = '#e7b478';
     particles.forEach((p) => {
-      ctx.globalAlpha = p.alpha;
-      ctx.fillStyle = '#ffe9f3';
+      ctx.globalAlpha = p.alpha * dust;
       ctx.beginPath();
-      ctx.arc(p.x * w, p.y * h, p.size, 0, Math.PI * 2);
+      // stretched horizontally so grains read as wind-blown streaking sand
+      ctx.ellipse(p.x * w, p.y * h, p.size * 2.4, p.size, 0, 0, Math.PI * 2);
       ctx.fill();
     });
     ctx.restore();
@@ -1069,28 +1138,41 @@ const World = (() => {
       ctx.moveTo(sx, sy); ctx.lineTo(sx + 40, sy - 16);
       ctx.stroke();
     } else if (scenicEvent.type === 'lightning') {
-      // A brief, localized glow low on the horizon — reads as a distant storm
-      // flash rather than a full-screen tint. Confined to a small rect around
-      // the flash point (not the whole top half) and kept dim so it never
-      // washes out the sky/sun.
-      const flashProgress = scenicEvent.life;
-      const dt1 = flashProgress - scenicEvent.flashAt;
+      const strength = scenicEvent.strength || 0.35;
+      const dt1 = scenicEvent.life - scenicEvent.flashAt;
       // Double-pulse: a quick bright flicker followed by a softer afterglow.
       let intensity = 0;
       if (dt1 > 0 && dt1 < 0.09) intensity = 1;
-      else if (dt1 >= 0.09 && dt1 < 0.24) intensity = 0.35 * (1 - (dt1 - 0.09) / 0.15);
+      else if (dt1 >= 0.09 && dt1 < 0.28) intensity = 0.35 * (1 - (dt1 - 0.09) / 0.19);
       if (intensity > 0) {
         const fx = scenicEvent.flashX * w;
         const fy = horizonY - h * 0.06;
-        const radius = w * 0.2;
+        const radius = w * (0.2 + strength * 0.2);
         const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, radius);
-        g.addColorStop(0, `rgba(223,233,255,${0.12 * intensity})`);
+        g.addColorStop(0, `rgba(223,233,255,${(0.12 + strength * 0.2) * intensity})`);
         g.addColorStop(1, 'rgba(223,233,255,0)');
         ctx.globalAlpha = 1;
         ctx.fillStyle = g;
-        // Only fill the gradient's own bounding box, not the entire top half —
-        // keeps the effect a small localized flash instead of a screen-wide tint.
         ctx.fillRect(Math.max(0, fx - radius), Math.max(0, fy - radius), radius * 2, radius * 2);
+
+        // Storm strikes: whole-sky lift + a visible jagged bolt down to the horizon
+        if (strength > 0.5) {
+          ctx.fillStyle = `rgba(225,235,255,${0.1 * strength * intensity})`;
+          ctx.fillRect(0, 0, w, horizonY + h * 0.05);
+          if (scenicEvent.bolt && dt1 < 0.12) {
+            ctx.strokeStyle = `rgba(240,246,255,${0.9 * intensity})`;
+            ctx.lineWidth = Math.max(1.5, w * 0.0022);
+            ctx.shadowColor = 'rgba(190,215,255,0.9)';
+            ctx.shadowBlur = 14;
+            ctx.beginPath();
+            scenicEvent.bolt.forEach(([bx, by], i) => {
+              if (i === 0) ctx.moveTo(bx * w, by * h);
+              else ctx.lineTo(bx * w, by * h);
+            });
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+          }
+        }
       }
     }
     ctx.restore();
@@ -1116,37 +1198,55 @@ const World = (() => {
 
     if (rain > 0.01) {
       ctx.save();
-      ctx.strokeStyle = `rgba(190,220,255,${0.3 * rain})`;
-      ctx.lineWidth = 1;
       const now = performance.now();
-      const drops = Math.floor(75 * rain);
-      for (let i = 0; i < drops; i++) {
-        const rx = (i * 53 + now / 6) % w;
-        const ry = (i * 91 + now / 2.5) % h;
+      // Two layers of rain streaks — a fast bright near layer and a slower
+      // dimmer far layer — so the downpour has visible depth.
+      ctx.strokeStyle = `rgba(185,215,255,${0.28 * rain})`;
+      ctx.lineWidth = 1;
+      const farDrops = Math.floor(110 * rain);
+      for (let i = 0; i < farDrops; i++) {
+        const rx = (i * 53 + now / 7) % w;
+        const ry = (i * 91 + now / 3.2) % h;
         ctx.beginPath();
         ctx.moveTo(rx, ry);
-        ctx.lineTo(rx - 5, ry + 16);
+        ctx.lineTo(rx - 4, ry + 12);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = `rgba(205,230,255,${0.5 * rain})`;
+      ctx.lineWidth = 1.6;
+      const nearDrops = Math.floor(80 * rain);
+      for (let i = 0; i < nearDrops; i++) {
+        const rx = (i * 71 + now / 4.5) % w;
+        const ry = (i * 113 + now / 1.8) % h;
+        ctx.beginPath();
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(rx - 7, ry + 24);
         ctx.stroke();
       }
       ctx.restore();
     }
 
     if (dust > 0.01) {
-      // Tan veil over everything + fast wind-blown dust streaks
-      ctx.fillStyle = `rgba(201,132,66,${0.14 * dust})`;
+      // Heavy tan veil (thicker toward the horizon) + fast wind-blown streaks;
+      // together with the sand-grain particles this reads as a real storm.
+      const dg = ctx.createLinearGradient(0, 0, 0, h);
+      dg.addColorStop(0, `rgba(201,132,66,${0.18 * dust})`);
+      dg.addColorStop(0.5, `rgba(214,150,80,${0.34 * dust})`);
+      dg.addColorStop(1, `rgba(201,132,66,${0.2 * dust})`);
+      ctx.fillStyle = dg;
       ctx.fillRect(0, 0, w, h);
       ctx.save();
-      ctx.strokeStyle = `rgba(228,174,112,${0.4 * dust})`;
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = `rgba(232,182,120,${0.55 * dust})`;
+      ctx.lineWidth = 2;
       const now = performance.now();
-      const streaks = Math.floor(28 * dust);
+      const streaks = Math.floor(60 * dust);
       for (let i = 0; i < streaks; i++) {
-        const raw = (i * 97 - now / 2.2) % (w + 120);
-        const sx = ((raw % (w + 120)) + w + 120) % (w + 120) - 60;
+        const raw = (i * 97 - now / 1.6) % (w + 160);
+        const sx = ((raw % (w + 160)) + w + 160) % (w + 160) - 80;
         const sy = (i * 61.7) % h;
         ctx.beginPath();
         ctx.moveTo(sx, sy);
-        ctx.lineTo(sx + 34, sy + 3);
+        ctx.lineTo(sx + 52, sy + 4);
         ctx.stroke();
       }
       ctx.restore();

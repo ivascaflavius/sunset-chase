@@ -70,8 +70,6 @@
           <li><span>Zones Visited</span><strong id="stat-zones">0 / 5</strong></li>
           <li><span>Best Flow Streak</span><strong id="stat-streak">0s</strong></li>
         </ul>
-        <h3>Achievements</h3>
-        <ul id="achievement-list" class="achievement-list"></ul>
         <div class="dialog-actions">
           <button data-action="back-menu" class="menu-btn">Back</button>
         </div>
@@ -128,13 +126,25 @@
         <div class="hud-speed">🏎 <span id="hud-speed">0</span> km/h</div>
         <div class="hud-time">⏱ <span id="hud-time">0:00</span></div>
         <div class="hud-zone" id="hud-zone">Palm Zone</div>
-        <div class="hud-line-meter" id="hud-line-meter" title="Perfect Line: stay centered to hold the sunset">
-          <span class="hud-line-icon">🎯</span>
-          <div class="hud-line-bar"><div id="hud-line-fill" class="hud-line-fill"></div></div>
+        <div class="hud-meter hud-line-meter" id="hud-line-meter" title="Perfect Line: stay centered to hold the sunset">
+          <span class="hud-meter-icon">🎯</span>
+          <div class="hud-meter-bar"><div id="hud-line-fill" class="hud-meter-fill"></div></div>
         </div>
-        <div class="hud-sun-meter"><div id="hud-sun-fill" class="hud-sun-fill"></div></div>
+        <div class="hud-meter hud-sun-meter" id="hud-sun-meter" title="Sunset: time left before the sun fully sets">
+          <span class="hud-meter-icon">🌇</span>
+          <div class="hud-meter-bar"><div id="hud-sun-fill" class="hud-meter-fill"></div></div>
+        </div>
       </div>
       <button id="pause-btn" class="icon-btn" data-action="pause">❚❚</button>
+    </div>
+
+    <!-- ======================= PRE-RUN COUNTDOWN OVERLAY =================== -->
+    <div id="countdown-overlay" class="hidden">
+      <div class="countdown-panel">
+        <p class="countdown-goal">🎯 Hold a steady speed on the <strong>perfect drive line</strong> to stop the sun from setting — keep it locked for as long as you can!</p>
+        <p class="countdown-best" id="countdown-best"></p>
+      </div>
+      <div id="countdown-number">3</div>
     </div>
 
     <!-- ============================ TOUCH CONTROLS ========================= -->
@@ -149,7 +159,7 @@
         <svg viewBox="0 0 24 24" class="touch-icon"><path d="M9 4 L17 12 L9 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
       <div id="touch-brake" class="touch-zone touch-brake" aria-label="Brake">
-        <svg viewBox="0 0 24 24" class="touch-icon"><polygon points="8,2 16,2 22,8 22,16 16,22 8,22 2,16 2,8" fill="none" stroke="currentColor" stroke-width="2.5"/><text x="12" y="15.5" text-anchor="middle" font-size="7" font-weight="bold" fill="currentColor" font-family="sans-serif">STOP</text></svg>
+        <svg viewBox="0 0 24 24" class="touch-icon"><polygon points="8,1 16,1 23,8 23,16 16,23 8,23 1,16 1,8" fill="none" stroke="currentColor" stroke-width="2"/><text x="12" y="13.8" text-anchor="middle" font-size="5" font-weight="bold" fill="currentColor" font-family="sans-serif">STOP</text></svg>
       </div>
       <div id="touch-accel" class="touch-zone touch-accel" aria-label="Accelerate">
         <svg viewBox="0 0 24 24" class="touch-icon"><path d="M12 3 L20 12 L15 12 L15 21 L9 21 L9 12 L4 12 Z" fill="currentColor"/></svg>
@@ -162,7 +172,6 @@
         <h2>Paused</h2>
         <nav class="menu-list">
           <button data-action="resume" class="menu-btn primary">Resume</button>
-          <button data-action="open-settings" class="menu-btn">Settings</button>
           <button data-action="quit-to-menu" class="menu-btn">Quit to Menu</button>
         </nav>
       </div>

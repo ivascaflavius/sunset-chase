@@ -29,14 +29,6 @@ const UI = (() => {
     { id: 'purple', label: 'Deep Purple', icon: '🔮' },
   ];
 
-  const ACHIEVEMENT_DEFS = [
-    { id: 'first_sunset', label: 'First Sunset Saved', check: (s) => s.suspensionBest > 0 },
-    { id: 'ten_km', label: '10 KM Driven', check: (s) => s.lifetimeKm >= 10 },
-    { id: 'palm_zone', label: 'Palm Zone Explorer', check: (s) => s.zonesEverVisited && s.zonesEverVisited.includes('Palm Zone') },
-    { id: 'flow_master', label: 'Longest Flow Streak', check: (s) => s.streakBest >= 30 },
-    { id: 'nightfall', label: 'Nightfall Survivor', check: (s) => s.zonesEverVisited && s.zonesEverVisited.includes('Nightfall Zone') },
-  ];
-
   let save = null;
   let actionHandlers = {};
   let previewFilter = null; // in-progress (unsaved) filter selection while Settings is open
@@ -51,7 +43,6 @@ const UI = (() => {
       suspensionBest: 0, // seconds
       streakBest: 0,     // seconds
       zonesEverVisited: [],
-      achievements: [],
     };
   }
 
@@ -81,9 +72,6 @@ const UI = (() => {
     if (suspensionSeconds > save.suspensionBest) save.suspensionBest = suspensionSeconds;
     if (streakSeconds > save.streakBest) save.streakBest = streakSeconds;
     zonesVisited.forEach((z) => { if (!save.zonesEverVisited.includes(z)) save.zonesEverVisited.push(z); });
-    ACHIEVEMENT_DEFS.forEach((a) => {
-      if (!save.achievements.includes(a.id) && a.check(save)) save.achievements.push(a.id);
-    });
     persist();
   }
 
@@ -208,15 +196,6 @@ const UI = (() => {
     document.getElementById('stat-suspension').textContent = formatTime(save.suspensionBest);
     document.getElementById('stat-zones').textContent = save.zonesEverVisited.length + ' / ' + World.ZONES.length;
     document.getElementById('stat-streak').textContent = Math.round(save.streakBest) + 's';
-
-    const list = document.getElementById('achievement-list');
-    list.innerHTML = '';
-    ACHIEVEMENT_DEFS.forEach((a) => {
-      const li = document.createElement('li');
-      li.textContent = a.label;
-      li.className = save.achievements.includes(a.id) ? 'unlocked' : '';
-      list.appendChild(li);
-    });
   }
 
   // ----- Settings ----------------------------------------------------------
@@ -325,6 +304,33 @@ const UI = (() => {
     document.getElementById('hud-line-meter').classList.toggle('locked', lineProximity01 >= 0.999);
   }
 
+  // ----- Pre-run countdown -----------------------------------------------------
+  // Shows the goal reminder + personal bests while the 3-2-1-GO plays out.
+  function showCountdown() {
+    const bestEl = document.getElementById('countdown-best');
+    const parts = [];
+    if (save.bestDistanceKm > 0) parts.push('Best distance: ' + save.bestDistanceKm.toFixed(1) + ' km');
+    if (save.suspensionBest > 0) parts.push('Best time: ' + formatTime(save.suspensionBest));
+    bestEl.textContent = parts.join('  ·  ');
+    bestEl.style.display = parts.length ? '' : 'none';
+    document.getElementById('countdown-overlay').classList.remove('hidden');
+  }
+
+  function setCountdownText(txt) {
+    const el = document.getElementById('countdown-number');
+    if (el.textContent !== txt) {
+      el.textContent = txt;
+      // retrigger the pop animation on every number change
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+    }
+  }
+
+  function hideCountdown() {
+    document.getElementById('countdown-overlay').classList.add('hidden');
+  }
+
   // ----- Game over -----------------------------------------------------------
   function showGameOver({ distanceKm, zonesVisited, streakSeconds, timeSeconds, isNewBest }) {
     document.getElementById('go-distance').textContent = distanceKm.toFixed(1) + ' km';
@@ -363,6 +369,7 @@ const UI = (() => {
     init, on, showScreen, hideAllScreens,
     getSave, recordRunResult, persist,
     showHud, updateHud, showGameOver,
+    showCountdown, setCountdownText, hideCountdown,
     applyVisualFilter, checkOrientation,
     renderMenu,
   };

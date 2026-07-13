@@ -36,6 +36,10 @@ html, body {
    STAGE: always 16:9, scaled to full viewport height, centered, with
    black bars filling any unused horizontal/vertical space.
    ------------------------------------------------------------------------- */
+/* Uses dynamic viewport units (dvh/dvw) where supported so the stage fits
+   the *visible* area on mobile browsers — 100vh on Android Chrome includes
+   the space behind the collapsible address bar, which pushed the HUD row
+   off-screen. The plain vh/vw lines are fallbacks for older browsers. */
 #stage {
   position: fixed;
   top: 50%;
@@ -43,8 +47,11 @@ html, body {
   transform: translate(-50%, -50%);
   aspect-ratio: 16 / 9;
   height: 100vh;
+  height: 100dvh;
   max-width: 100vw;
+  max-width: 100dvw;
   width: calc(100vh * 16 / 9);
+  width: calc(100dvh * 16 / 9);
   background: #000;
   overflow: hidden;
   box-shadow: 0 0 80px rgba(0,0,0,0.9);
@@ -55,7 +62,9 @@ html, body {
 @media (max-aspect-ratio: 16/9) {
   #stage {
     width: 100vw;
+    width: 100dvw;
     height: calc(100vw * 9 / 16);
+    height: calc(100dvw * 9 / 16);
   }
 }
 
@@ -229,12 +238,6 @@ h3 { color: var(--neon-orange); margin-bottom: 4px; }
 .stat-list li { display: flex; justify-content: space-between; padding: 6px 4px; border-bottom: 1px dashed rgba(255,255,255,0.1); font-size: 13px; }
 .stat-list strong { color: var(--neon-yellow); }
 
-.achievement-list { list-style: none; padding: 0; margin: 6px 0; text-align: left; max-height: 140px; overflow-y: auto; }
-.achievement-list li { font-size: 12px; padding: 4px 6px; opacity: 0.5; }
-.achievement-list li.unlocked { opacity: 1; color: var(--neon-cyan); }
-.achievement-list li.unlocked::before { content: "★ "; }
-.achievement-list li:not(.unlocked)::before { content: "☆ "; }
-
 .help-panel { text-align: left; }
 .help-scroll { max-height: 46vh; overflow-y: auto; padding-right: 6px; }
 .help-panel p { font-size: 12.5px; line-height: 1.5; opacity: 0.9; }
@@ -260,38 +263,33 @@ h3 { color: var(--neon-orange); margin-bottom: 4px; }
 .hud-speed { color: var(--neon-yellow); }
 .hud-distance { color: var(--neon-cyan); }
 .hud-time { color: var(--neon-pink); }
-.hud-line-meter {
-  display: flex; align-items: center; gap: 6px;
+/* Both bar meters (perfect line + sunset) share the same chip styling as the
+   distance/speed/time readouts, so the whole HUD row reads as one family. */
+.hud-meter {
+  display: flex; align-items: center; gap: 8px;
   background: rgba(0,0,0,0.4);
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.2);
 }
-.hud-line-icon { font-size: 0.7em; filter: grayscale(0.6); transition: filter 0.3s ease; }
-.hud-line-meter.locked .hud-line-icon { filter: grayscale(0) drop-shadow(0 0 6px var(--neon-cyan)); }
-.hud-line-bar {
-  width: 60px; height: 8px;
+.hud-meter-icon { font-size: 1em; line-height: 1; }
+.hud-line-meter .hud-meter-icon { filter: grayscale(0.6); transition: filter 0.3s ease; }
+.hud-line-meter.locked .hud-meter-icon { filter: grayscale(0) drop-shadow(0 0 6px var(--neon-cyan)); }
+.hud-meter-bar {
+  width: 64px; height: 0.5em;
   background: rgba(255,255,255,0.15);
   border-radius: 6px;
   overflow: hidden;
 }
-.hud-line-fill {
-  height: 100%; width: 0%;
+.hud-sun-meter .hud-meter-bar { width: clamp(90px, 11vw, 170px); }
+.hud-meter-fill { height: 100%; }
+#hud-line-fill {
+  width: 0%;
   background: var(--neon-cyan);
   transition: width 0.15s linear, background 0.3s ease;
 }
-.hud-line-meter.locked .hud-line-fill { background: var(--neon-yellow); box-shadow: 0 0 8px var(--neon-yellow); }
-.hud-sun-meter {
-  flex: 1;
-  max-width: 220px;
-  height: 8px;
-  background: rgba(0,0,0,0.4);
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.2);
-}
-.hud-sun-fill {
-  height: 100%;
+.hud-line-meter.locked #hud-line-fill { background: var(--neon-yellow); box-shadow: 0 0 8px var(--neon-yellow); }
+#hud-sun-fill {
   width: 100%;
   background: linear-gradient(90deg, var(--neon-pink), var(--neon-yellow));
   transition: width 0.4s ease;
@@ -305,6 +303,45 @@ h3 { color: var(--neon-orange); margin-bottom: 4px; }
   width: 34px; height: 34px;
   cursor: pointer;
   font-size: 14px;
+}
+
+/* -------------------------------------------------------------------------
+   PRE-RUN COUNTDOWN — goal reminder + big 3/2/1/GO numbers
+   ------------------------------------------------------------------------- */
+#countdown-overlay {
+  position: absolute; inset: 0;
+  z-index: 18;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5vh;
+  pointer-events: none;
+  background: rgba(5, 0, 12, 0.28);
+}
+.countdown-panel {
+  background: var(--panel-bg);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: clamp(10px, 2vh, 18px) clamp(16px, 3vw, 28px);
+  max-width: min(84%, 640px);
+  text-align: center;
+  backdrop-filter: blur(3px);
+}
+.countdown-goal { margin: 0; font-size: clamp(12px, 2.3vh, 17px); line-height: 1.45; }
+.countdown-goal strong { color: var(--neon-cyan); }
+.countdown-best { margin: 8px 0 0; color: var(--neon-yellow); font-weight: bold; font-size: clamp(11px, 2vh, 15px); }
+#countdown-number {
+  font-size: clamp(60px, 17vh, 150px);
+  font-weight: bold;
+  line-height: 1;
+  color: var(--neon-yellow);
+  text-shadow: 0 0 18px var(--neon-orange), 0 0 44px var(--neon-pink);
+}
+#countdown-number.pop { animation: countdown-pop 0.35s ease; }
+@keyframes countdown-pop {
+  0% { transform: scale(1.7); opacity: 0.15; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 /* -------------------------------------------------------------------------

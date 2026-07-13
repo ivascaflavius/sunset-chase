@@ -67,8 +67,9 @@
   // ---------------------------------------------------------------------
   // Game state
   // ---------------------------------------------------------------------
-  const STATE = { MENU: 'menu', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover' };
+  const STATE = { MENU: 'menu', COUNTDOWN: 'countdown', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover' };
   let state = STATE.MENU;
+  let countdownT = 0; // seconds left in the 3-2-1-GO sequence (GO shows below 0)
 
   const car = {
     x: 0,          // lateral position, -1 (left edge) .. 1 (right edge) of road half-width
@@ -117,7 +118,12 @@
     smoothnessScore = 1; lastSteer = 0; neonTrail = []; wheelSpin = 0; lineProximity = 0;
     prevCarX = curCarX = 0; prevDistance = curDistance = 0;
 
-    state = STATE.PLAYING;
+    // Run opens with a 3-2-1-GO countdown that restates the goal and shows
+    // personal bests; physics stays frozen until "GO".
+    state = STATE.COUNTDOWN;
+    countdownT = 3.0;
+    UI.setCountdownText('3');
+    UI.showCountdown();
     UI.showHud(true);
     UI.applyVisualFilter(save.settings.filter);
     resizeCanvas();
@@ -156,6 +162,7 @@
   }
   function quitToMenu() {
     state = STATE.MENU;
+    UI.hideCountdown();
     UI.showHud(false);
   }
 
@@ -308,6 +315,14 @@
     drawNeonTrail(w, h);
     drawCar(w, h, save.settings.car, flow01, Controls.state.brake);
 
+    // Global dusk: the whole scene (car included) sinks into darkness as the
+    // sun sets, so the light level tracks the sunset instead of staying flat.
+    const dusk = Math.pow(1 - sunset.height01, 1.7) * 0.48;
+    if (dusk > 0.01) {
+      ctx.fillStyle = `rgba(4, 1, 14, ${dusk.toFixed(3)})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+
     UI.updateHud(car.distance / 100000, result.zoneName, sunset.height01, car.speed * 220, sunset.suspensionTime, lineProximity);
   }
 
@@ -361,31 +376,26 @@
     ctx.translate(cx, cy);
     ctx.rotate(car.heading * 0.14);
 
-    // Soft ground shadow
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = '#000';
+    // --- Single large ground shadow: one soft radial pool under the whole
+    // car (body + both wheels), replacing the old stack of overlapping
+    // per-wheel/rocker shadows that read as visual noise.
+    const shadowG = ctx.createRadialGradient(0, carH * 0.58, 0, 0, carH * 0.58, carW * 0.72);
+    shadowG.addColorStop(0, 'rgba(0,0,0,0.5)');
+    shadowG.addColorStop(0.65, 'rgba(0,0,0,0.35)');
+    shadowG.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = shadowG;
+    ctx.save();
+    ctx.translate(0, carH * 0.58);
+    ctx.scale(1, 0.22);
     ctx.beginPath();
-    ctx.ellipse(0, carH * 0.62, carW * 0.6, carH * 0.14, 0, 0, Math.PI * 2);
+    ctx.arc(0, 0, carW * 0.72, 0, Math.PI * 2);
     ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.restore();
 
-    // --- Individual ground-contact shadows beneath each wheel: a small flat
-    // ellipse that grounds the tire visually and reinforces its round shape
-    // (distinct from the single big shadow under the whole car above).
-    ctx.globalAlpha = 0.4;
-    ctx.fillStyle = '#000';
-    [-1, 1].forEach((side) => {
-      ctx.beginPath();
-      ctx.ellipse(side * carW * 0.39, carH * 0.62, carW * 0.15, carH * 0.05, 0, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-
-    // --- Rear wheels: smaller & positioned low so the fender flares conceal
-    // most of the tire — only a peek of tread shows beneath the body, as on
-    // a real low-slung sports car (not two big black balls dominating the view).
-    drawWheel(-carW * 0.39, carH * 0.5, carW * 0.12, car.wheelAngle, car.speed, style.spoke);
-    drawWheel(carW * 0.39, carH * 0.5, carW * 0.12, car.wheelAngle, car.speed, style.spoke);
+    // --- Rear wheels: wide stance, tucked low so the fender flares conceal
+    // the top of the tire, as on a real low-slung sports car.
+    drawWheel(-carW * 0.42, carH * 0.48, carW * 0.13, car.wheelAngle, car.speed, style.spoke);
+    drawWheel(carW * 0.42, carH * 0.48, carW * 0.13, car.wheelAngle, car.speed, style.spoke);
 
     // --- Body: wide flat rear deck with bulging fender flares over each wheel well ---
     if (flow01 > 0.05) { ctx.shadowColor = style.color; ctx.shadowBlur = 16 * flow01; }
@@ -405,14 +415,11 @@
     ctx.closePath();
     ctx.fill();
 
-    // Lower rocker/valance shading for depth along the flare bottoms
-    ctx.globalAlpha = 0.2;
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.ellipse(-carW * 0.39, carH * 0.42, carW * 0.16, carH * 0.08, 0, 0, Math.PI * 2);
-    ctx.ellipse(carW * 0.39, carH * 0.42, carW * 0.16, carH * 0.08, 0, 0, Math.PI * 2);
+    // Dark lower bumper/valance band — grounds the body visually and reads
+    // as a real rear bumper instead of paint going all the way to the road.
+    ctx.fillStyle = 'rgba(16,14,20,0.9)';
+    pathCapsule(0, carH * 0.36, carW * 0.44, carH * 0.06);
     ctx.fill();
-    ctx.globalAlpha = 1;
 
     // Specular highlight streak across the upper body — sells a glossy,
     // curved painted surface instead of a flat-shaded block.
@@ -653,9 +660,11 @@
     ctx.save();
     ctx.translate(x, y);
     const openness = Math.min(1, Math.abs(steerAngle)); // 0 = dead straight, 1 = full lock
-    // Minimum thickness floor so the tire never vanishes into a line.
-    const halfW = r * (0.34 + openness * 0.4);
-    ctx.rotate(steerAngle * 0.35); // slight tilt sells the angled-wheel look
+    // Viewed dead-on from behind, a tire shows its full cylindrical width —
+    // so the base thickness is high, and steering only *slightly* opens the
+    // profile while tilting it, like a real wheel turning under the arches.
+    const halfW = r * (0.62 + openness * 0.22);
+    ctx.rotate(steerAngle * 0.22); // gentle tilt sells the angled-wheel look
 
     // Outer tire: dark rubber capsule
     ctx.fillStyle = '#0a0a0a';
@@ -769,6 +778,21 @@
 
     if (Controls.consumePause() && state === STATE.PLAYING) pauseRun();
 
+    if (state === STATE.COUNTDOWN) {
+      let cdt = (now - lastFrameTime) / 1000;
+      lastFrameTime = now;
+      countdownT -= Math.min(cdt, 0.1);
+      UI.setCountdownText(countdownT > 2 ? '3' : countdownT > 1 ? '2' : countdownT > 0 ? '1' : 'GO!');
+      render(1); // static scene behind the overlay
+      if (countdownT <= -0.7) {
+        UI.hideCountdown();
+        state = STATE.PLAYING;
+        accumulator = 0;
+        lastFrameTime = performance.now();
+      }
+      return;
+    }
+
     if (state !== STATE.PLAYING) {
       lastFrameTime = now;
       return;
@@ -800,6 +824,14 @@
   UI.on('orientationChanged', (isLandscape) => {
     if (!isLandscape && state === STATE.PLAYING) pauseRun();
   });
+
+  // Auto-pause whenever the player switches to another tab, app or window —
+  // both signals are needed: visibilitychange covers tab switches/minimize,
+  // blur covers alt-tabbing to another app while the tab stays visible.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pauseRun();
+  });
+  window.addEventListener('blur', () => pauseRun());
 
   // ---------------------------------------------------------------------
   // Boot
